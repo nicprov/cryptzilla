@@ -1,0 +1,167 @@
+--port module Storage exposing
+--    ( Storage
+--    , storageToJson
+--    , storageFromJson
+--    , addItemToCart
+--    , removeItemFromCart
+--    , clearCart
+--    , cartItemToJson
+--    , storageDecoder
+--    , init
+--    , onChange
+--    , signIn
+--    , signOut
+--    , changeSubscriptionStatus
+--    )
+--
+--import Domain.User exposing (User, userDecoder, userEncoder)
+--import Json.Decode as Decode exposing (Decoder, decodeValue, field, int, map, map2, nullable, string)
+--import Json.Decode.Pipeline exposing (required)
+--import Json.Encode as Encode exposing (Value, encode, list, string)
+--import List exposing (concatMap)
+--import Proto.Response exposing (Cart, CartItem)
+--
+---- Model
+--
+--type alias Storage =
+--    { cart: Cart
+--    , user: Maybe User
+--    }
+--
+---- Ports
+--
+--port save: Decode.Value -> Cmd msg
+--port load: (Decode.Value -> msg) -> Sub msg
+--
+--
+---- Convert to JSON
+--
+--storageToJson: Storage -> Decode.Value
+--storageToJson storage =
+--    Encode.object
+--        [ ("cart", cartToJson storage.cart)
+--        , ("user", userEncoder storage.user)
+--        ]
+--
+--cartToJson: Cart -> Value
+--cartToJson cart =
+--    Encode.object
+--        [ ("items", (Encode.list cartItemToJson cart.items))
+--        ]
+--
+--cartItemToJson: CartItem -> Value
+--cartItemToJson item =
+--    Encode.object
+--        [ ("domain", Encode.string item.domain)
+--        , ("timestamp", Encode.string item.timestamp)
+--        ]
+--
+---- Convert from JSON
+--
+--storageFromJson: Decode.Value -> Storage
+--storageFromJson json =
+--    json
+--        |> Decode.decodeValue storageDecoder
+--        |> Result.withDefault init
+--
+--
+---- Decoders
+--
+--storageDecoder: Decoder Storage
+--storageDecoder =
+--    Decode.succeed Storage
+--        |> required "cart" cartDecoder
+--        |> required "user" (nullable userDecoder)
+--
+--cartDecoder: Decoder Cart
+--cartDecoder =
+--    Decode.succeed Cart
+--        |> required "items" (Decode.list cartItemDecoder)
+--
+--cartItemDecoder: Decoder CartItem
+--cartItemDecoder =
+--    Decode.succeed CartItem
+--            |> required "timestamp" Decode.string
+--            |> required "domain" Decode.string
+--
+---- Update storage
+--
+--addItemToCart: CartItem -> Storage -> Cmd msg
+--addItemToCart item storage =
+--    if not (checkItemExistInCart item storage) then
+--        let
+--            cart = Cart (item :: storage.cart.items)
+--        in
+--        { storage | cart = cart}
+--            |> storageToJson
+--            |> save
+--    else
+--        Cmd.none
+--
+--checkItemExistInCart: CartItem -> Storage -> Bool
+--checkItemExistInCart item storage =
+--    List.member item storage.cart.items
+--
+--removeItemFromCart: CartItem -> Storage -> Cmd msg
+--removeItemFromCart item storage =
+--    if checkItemExistInCart item storage then
+--        let
+--            cart = Cart ((List.filter (\x -> x /= item) storage.cart.items))
+--        in
+--        { storage | cart = cart }
+--            |> storageToJson
+--            |> save
+--    else
+--        Cmd.none
+--
+--clearCart: Storage -> Cmd msg
+--clearCart storage =
+--    { storage | cart = (Cart []) }
+--        |> storageToJson
+--        |> save
+--
+--
+---- Auth
+--
+--signIn: User -> Storage -> Cmd msg
+--signIn user storage =
+--    { storage | user = Just user }
+--        |> storageToJson
+--        |> save
+--
+--signOut: Storage -> Cmd msg
+--signOut storage =
+--    { storage | user = Nothing}
+--        |> storageToJson
+--        |> save
+--
+---- Subscription status
+--
+--changeSubscriptionStatus: Storage -> Bool -> Cmd msg
+--changeSubscriptionStatus storage status =
+--    case storage.user of
+--        Just user ->
+--            let
+--                oldUser = user
+--                newUser =
+--                    { oldUser | subscribed = status }
+--            in { storage | user = Just newUser }
+--                |> storageToJson
+--                |> save
+--
+--        Nothing -> (Cmd.none)
+--
+--
+---- Init
+--
+--init: Storage
+--init =
+--    { cart = Cart []
+--    , user = Nothing
+--    }
+--
+---- Listen for storage updates
+--
+--onChange : (Storage -> msg) -> Sub msg
+--onChange fromStorage =
+--    load (\json -> storageFromJson json |> fromStorage)
