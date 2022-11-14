@@ -8,6 +8,8 @@
     "elm-version": "0.19.1",
     "dependencies": {
         "direct": {
+            "NoRedInk/elm-json-decode-pipeline": "1.0.1",
+            "billstclair/elm-s3": "3.0.0",
             "elm/browser": "1.0.2",
             "elm/core": "1.0.5",
             "elm/html": "1.0.0",
@@ -16,8 +18,22 @@
             "ryannhg/elm-spa": "6.0.0"
         },
         "indirect": {
+            "billstclair/elm-xml-eeue56": "2.1.0",
+            "billstclair/elm-xml-extra": "3.0.0",
+            "elm/bytes": "1.0.8",
+            "elm/file": "1.0.5",
+            "elm/http": "2.0.0",
+            "elm/parser": "1.1.0",
+            "elm/regex": "1.0.0",
             "elm/time": "1.0.0",
-            "elm/virtual-dom": "1.0.2"
+            "elm/virtual-dom": "1.0.2",
+            "elm-community/json-extra": "4.3.0",
+            "ktonon/elm-crypto": "1.1.2",
+            "ktonon/elm-word": "2.1.2",
+            "miniBill/elm-codec": "1.2.0",
+            "rtfeldman/elm-iso8601-date-strings": "1.1.4",
+            "the-sett/elm-aws-core": "8.1.0",
+            "the-sett/elm-refine": "1.4.0"
         }
     },
     "test-dependencies": {
