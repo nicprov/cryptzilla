@@ -1,13 +1,14 @@
 module Pages.Login exposing (Model, Msg, page)
 
-import Domain.Credentials exposing (Credentials)
 import Common.Alert exposing (viewAlertError)
 import Gen.Route
-import Html exposing (Html, a, button, div, form, h1, hr, i, img, input, label, li, main_, ol, p, span, text)
+import Html exposing (Html, a, button, div, form, h1, hr, i, img, input, label, li, main_, ol, option, p, select, span, text)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick, onInput)
+import List exposing (head)
 import Page
 import Request exposing (Request)
+import S3.Types
 import Shared
 import Storage exposing (signIn)
 import View exposing (View)
@@ -27,48 +28,92 @@ type Status
     | None
 
 type alias Model =
-    { accessKey: String
-    , endpoint: String
-    , secret: String
+    { account: S3.Types.Account
     , status: Status
     }
 
 init : (Model, Cmd Msg)
 init =
-    (Model "" "" "" None, Cmd.none)
+    (Model (S3.Types.Account "S3" (Just "") False "" "" []) None, Cmd.none)
 
 -- Update
 
 type Msg
-    = ChangeAccessKey String
-    | ChangeEndoint String
-    | ChangeSecret String
+    = ChangeRegion String
+    | ChangeIsDigitalOcean String
+    | ChangeAccessKey String
+    | ChangeSecretKey String
+    | ChangeBucket String
     | ClickedSignIn
+
+stringFromBool : Bool -> String
+stringFromBool value =
+  if value then
+    "True"
+  else
+    "False"
+
+boolFromString : String -> Bool
+boolFromString value =
+  if value == "True" then
+    True
+  else
+    False
+
 
 update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
 update shared req msg model =
     case msg of
+        ChangeRegion region ->
+            let
+                oldAccount = model.account
+                newAccount = { oldAccount | region = Just region }
+            in
+            ( { model | account = newAccount }, Cmd.none)
+
+        ChangeIsDigitalOcean isDigitalOcean ->
+            let
+                oldAccount = model.account
+                newAccount = { oldAccount | isDigitalOcean = (boolFromString isDigitalOcean) }
+            in
+            ( { model | account = newAccount }, Cmd.none)
+
         ChangeAccessKey accessKey ->
-            ( { model | accessKey = accessKey }, Cmd.none)
+            let
+                oldAccount = model.account
+                newAccount = { oldAccount | accessKey = accessKey }
+            in
+            ( { model | account = newAccount }, Cmd.none)
 
-        ChangeEndoint endpoint ->
-            ( { model | endpoint = endpoint }, Cmd.none)
 
-        ChangeSecret secret ->
-            ( { model | secret = secret }, Cmd.none)
+        ChangeBucket bucket ->
+            let
+                oldAccount = model.account
+                newAccount = { oldAccount | buckets = [bucket] }
+            in
+            ( { model | account = newAccount }, Cmd.none)
+
+        ChangeSecretKey secretKey ->
+            let
+                oldAccount = model.account
+                newAccount = { oldAccount | secretKey = secretKey }
+            in
+            ( { model | account = newAccount }, Cmd.none)
+
 
         ClickedSignIn ->
-            if model.accessKey == "" then
+            if model.account.accessKey == "" then
                 ( { model | status = Error "Access Key cannot be empty"}, Cmd.none)
-            else if model.endpoint == "" then
+            else if model.account.secretKey == "" then
                 ( { model | status = Error "Endpoint cannot be empty"}, Cmd.none)
-            else if model.secret == "" then
-                ( { model | status = Error "Secret cannot be empty"}, Cmd.none)
+            else if model.account.buckets == [] then
+                ( { model | status = Error "Bucket cannot be empty"}, Cmd.none)
             else
-                (model, Cmd.batch [ Storage.signIn (Credentials model.accessKey model.endpoint model.secret) shared.storage
+                (model, Cmd.batch [ Storage.signIn model.account shared.storage
                                   ,  Request.replaceRoute Gen.Route.Home_ req
                                   ]
                 )
+
 
 -- View
 
@@ -95,27 +140,61 @@ viewMain model =
         , label
             [ Attr.class "sr-only"
             ]
+            [ text "Region" ]
+        , input
+            [ Attr.class "form-control"
+            , Attr.placeholder "Region"
+            , Attr.required True
+            , Attr.autofocus True
+            , Attr.value ( case model.account.region of
+                    Just region -> region
+                    Nothing -> ""
+                )
+            , onInput ChangeRegion
+            ]
+            []
+        , label
+            [ Attr.class "sr-only"
+            ]
+            [ text "Digital Ocean" ]
+        , select
+            [ Attr.class "form-control"
+            , Attr.id "exampleFormControlSelect1"
+            , Attr.value (stringFromBool model.account.isDigitalOcean)
+            , onInput ChangeIsDigitalOcean
+            ]
+            [ option []
+                [ text "False" ]
+            , option []
+                [ text "True" ]
+            ]
+        , label
+            [ Attr.class "sr-only"
+            ]
+            [ text "Bucket" ]
+        , input
+            [ Attr.class "form-control"
+            , Attr.placeholder "Bucket"
+            , Attr.required True
+            , Attr.autofocus True
+            , Attr.value (case (head model.account.buckets) of
+                Just item -> item
+                Nothing -> ""
+                )
+            , onInput ChangeBucket
+            ]
+            []
+        , label
+            [ Attr.class "sr-only"
+            ]
             [ text "Access Key" ]
         , input
             [ Attr.class "form-control"
             , Attr.placeholder "Access Key"
             , Attr.required True
             , Attr.autofocus True
-            , Attr.value model.accessKey
+            , Attr.value model.account.accessKey
             , onInput ChangeAccessKey
-            ]
-            []
-        , label
-            [ Attr.class "sr-only"
-            ]
-            [ text "Endpoint" ]
-        , input
-            [ Attr.class "form-control"
-            , Attr.placeholder "Endpoint"
-            , Attr.required True
-            , Attr.autofocus True
-            , Attr.value model.endpoint
-            , onInput ChangeEndoint
             ]
             []
         , label
@@ -127,8 +206,8 @@ viewMain model =
             , Attr.class "form-control"
             , Attr.placeholder "Secret"
             , Attr.required True
-            , Attr.value model.secret
-            , onInput ChangeSecret
+            , Attr.value model.account.secretKey
+            , onInput ChangeSecretKey
             ]
             []
         , div

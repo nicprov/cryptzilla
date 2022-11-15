@@ -2,9 +2,14 @@ module Pages.Home_ exposing (Model, Msg, page)
 
 import Html exposing (Html, a, button, div, hr, i, input, label, li, ol, span, text)
 import Html.Attributes as Attr
+import Html.Events exposing (onClick)
+import List exposing (head)
 import Page
 import Request exposing (Request)
+import S3
+import S3.Types exposing (Error, KeyList, QueryElement(..))
 import Shared
+import Task
 import View exposing (View)
 
 
@@ -18,35 +23,85 @@ page shared _ =
         }
 
 type alias Model =
-    {
+    { display: String
+    , keyList: Maybe KeyList
+    , currentDir: String
     }
 
 init : (Model, Cmd Msg)
 init =
-    (Model, Cmd.none)
+    (Model "" Nothing "", Cmd.none)
 
 -- Update
 
 type Msg
-    = None
+    = ReceiveListBucket (Result Error KeyList)
+    | ListBucket
+    | ClickFolder String
+    | ClickedBack
+
+listBucket : S3.Types.Account -> Cmd Msg
+listBucket account =
+    let
+        bucket = (case (head account.buckets) of
+            Just b -> b
+            Nothing -> ""
+            )
+    in
+    S3.listKeys bucket
+        |> S3.addQuery [ MaxKeys 100 ]
+        |> S3.send account
+        |> Task.attempt ReceiveListBucket
 
 update: Shared.Model -> Msg -> Model -> (Model, Cmd Msg)
-update _ msg model =
+update shared msg model =
     case msg of
-        None ->
-            (model, Cmd.none)
+
+        ListBucket ->
+            case shared.storage.account of
+                Just acc ->
+                    ( { model | display = "Getting bucket listing..." }
+                    , listBucket acc
+                    )
+                Nothing -> (model, Cmd.none)
+
+        ReceiveListBucket result ->
+            case result of
+                Err err ->
+                    ( { model | display = Debug.toString err }
+                    , Cmd.none
+                    )
+
+                Ok keys ->
+                    ( { model
+                        | display = "Bucket listing received."
+                        , keyList = Just keys
+                      }
+                    , Cmd.none
+                    )
+
+        ClickFolder folder ->
+            ( { model | currentDir = folder }, Cmd.none)
+
+
+        ClickedBack ->
+            let
+                tempList = List.drop 2 (List.reverse (String.split "/" model.currentDir))
+                newDirList =  List.map (\m -> m ++ "/") tempList
+            in
+            ( { model | currentDir = String.concat newDirList }, Cmd.none)
 
 -- View
 
 view : Shared.Model -> Model -> View Msg
 view shared model =
     { title = "File Manager"
-    , body = [ viewMain
+    , body = [ viewMain model
              ]
     }
 
-viewMain: Html Msg
-viewMain =
+viewMain: Model -> Html Msg
+viewMain model =
     div
         [ Attr.class "container flex-grow-1 light-style container-p-y"
         ]
@@ -88,12 +143,13 @@ viewMain =
                     [ button
                         [ Attr.type_ "button"
                         , Attr.class "btn btn-primary mr-2"
+                        , onClick ListBucket
                         ]
                         [ i
                             [ Attr.class "ion ion-md-cloud-upload"
                             ]
                             []
-                        , text " Upload" ]
+                        , text " Fetch" ]
                     , button
                         [ Attr.type_ "button"
                         , Attr.class "btn btn-secondary icon-btn mr-2"
@@ -180,1245 +236,213 @@ viewMain =
                 ]
                 []
             ]
+
         , div
             [ Attr.class "file-manager-container file-manager-col-view"
             ]
-            [ div
-                [ Attr.class "file-manager-row-header"
+            (List.append viewBack
+                (case model.keyList of
+                    Just keyList -> List.map (viewItem model) keyList.keys
+                    Nothing -> []
+                )
+            )
+        ]
+
+viewItem: Model -> S3.Types.KeyInfo -> Html Msg
+viewItem model key =
+    if String.contains model.currentDir key.key then
+        let
+            name = String.replace model.currentDir "" key.key
+            file = String.split "/" name
+        in
+        if name /= "" then
+            if (List.length file) == 1 then
+                viewFile model key
+            else if (List.length file) == 2 then
+                case List.head (List.reverse file) of
+                    Just element ->
+                        if element == "" then
+                            viewFolder model key
+                        else
+                            div [] []
+                    Nothing ->
+                        div [] []
+            else
+                div [] []
+        else
+            div [] []
+    else
+        div [] []
+
+viewFile: Model -> S3.Types.KeyInfo -> Html Msg
+viewFile model key =
+    let
+        name = String.replace model.currentDir "" key.key
+    in
+    div
+        [ Attr.class "file-item"
+        ]
+        [ div
+            [ Attr.class "file-item-select-bg bg-primary"
+            ]
+            []
+        , label
+            [ Attr.class "file-item-checkbox custom-control custom-checkbox"
+            ]
+            [ input
+                [ Attr.type_ "checkbox"
+                , Attr.class "custom-control-input"
                 ]
-                [ div
-                    [ Attr.class "file-item-name pb-2"
+                []
+            , span
+                [ Attr.class "custom-control-label"
+                ]
+                []
+            ]
+        , div
+            [ Attr.class "file-item-icon far fa-file text-secondary" ]
+            []
+        , a
+            [ Attr.href "#"
+            , Attr.class "file-item-name"
+            ]
+            [ text name ]
+        , div
+            [ Attr.class "file-item-changed"
+            ]
+            [ text key.lastModified ]
+        , div
+            [ Attr.class "file-item-actions btn-group"
+            ]
+            [ button
+                [ Attr.type_ "button"
+                , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
+                , Attr.attribute "data-toggle" "dropdown"
+                ]
+                [ i
+                    [ Attr.class "ion ion-ios-more"
                     ]
-                    [ text "Filename" ]
-                , div
-                    [ Attr.class "file-item-changed pb-2"
-                    ]
-                    [ text "Changed" ]
+                    []
                 ]
             , div
-                [ Attr.class "file-item"
+                [ Attr.class "dropdown-menu dropdown-menu-right"
                 ]
-                [ div
-                    [ Attr.class "file-item-icon file-item-level-up fas fa-level-up-alt text-secondary"
+                [ a
+                    [ Attr.class "dropdown-item"
+                    , Attr.href "#"
                     ]
-                    []
+                    [ text "Rename" ]
                 , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
+                    [ Attr.class "dropdown-item"
+                    , Attr.href "#"
                     ]
-                    [ text ".." ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon far fa-folder text-secondary"
-                    ]
-                    []
+                    [ text "Move" ]
                 , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
+                    [ Attr.class "dropdown-item"
+                    , Attr.href "#"
                     ]
-                    [ text "Images" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/13/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon far fa-folder text-secondary"
-                    ]
-                    []
+                    [ text "Copy" ]
                 , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
+                    [ Attr.class "dropdown-item"
+                    , Attr.href "#"
                     ]
-                    [ text "Scripts" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/14/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon far fa-folder text-secondary"
-                    ]
-                    []
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Utils" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/15/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon far fa-file-archive text-secondary"
-                    ]
-                    []
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Archive.zip" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/16/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon fab fa-js text-secondary"
-                    ]
-                    []
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Build.js" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/17/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon far fa-file-word text-secondary"
-                    ]
-                    []
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Checklist.doc" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/18/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon fab fa-html5 text-secondary"
-                    ]
-                    []
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Index.html" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/19/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Image-1.jpg" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/20/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Image-2.png" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/21/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Image-3.gif" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/22/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon fab fa-js text-secondary"
-                    ]
-                    []
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Main.js" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/23/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon far fa-file text-secondary"
-                    ]
-                    []
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "MAKEFILE" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/24/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon far fa-file-pdf text-secondary"
-                    ]
-                    []
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Presentation.pdf" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/25/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon far fa-file-alt text-secondary"
-                    ]
-                    []
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "README.txt" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/26/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon fab fa-css3 text-secondary"
-                    ]
-                    []
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Style.css" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/27/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon far fa-file-audio text-secondary"
-                    ]
-                    []
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Test.mp3" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "02/28/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ Attr.class "file-item"
-                ]
-                [ div
-                    [ Attr.class "file-item-select-bg bg-primary"
-                    ]
-                    []
-                , label
-                    [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-                    ]
-                    [ input
-                        [ Attr.type_ "checkbox"
-                        , Attr.class "custom-control-input"
-                        ]
-                        []
-                    , span
-                        [ Attr.class "custom-control-label"
-                        ]
-                        []
-                    ]
-                , div
-                    [ Attr.class "file-item-icon far fa-file-video text-secondary"
-                    ]
-                    []
-                , a
-                    [ Attr.href "#"
-                    , Attr.class "file-item-name"
-                    ]
-                    [ text "Tutorial.avi" ]
-                , div
-                    [ Attr.class "file-item-changed"
-                    ]
-                    [ text "03/01/2018" ]
-                , div
-                    [ Attr.class "file-item-actions btn-group"
-                    ]
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                        , Attr.attribute "data-toggle" "dropdown"
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-ios-more"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "dropdown-menu dropdown-menu-right"
-                        ]
-                        [ a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Rename" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Move" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Copy" ]
-                        , a
-                            [ Attr.class "dropdown-item"
-                            , Attr.href "#"
-                            ]
-                            [ text "Remove" ]
-                        ]
-                    ]
+                    [ text "Remove" ]
                 ]
             ]
         ]
+
+viewFolder: Model -> S3.Types.KeyInfo -> Html Msg
+viewFolder model key =
+    let
+        name = String.replace model.currentDir "" key.key
+    in
+    div
+        [ Attr.class "file-item"
+        , onClick (ClickFolder key.key)
+        ]
+        [ div
+            [ Attr.class "file-item-select-bg bg-primary"
+            ]
+            []
+        , label
+            [ Attr.class "file-item-checkbox custom-control custom-checkbox"
+            ]
+            [ input
+                [ Attr.type_ "checkbox"
+                , Attr.class "custom-control-input"
+                ]
+                []
+            , span
+                [ Attr.class "custom-control-label"
+                ]
+                []
+            ]
+        , div
+            [ Attr.class "file-item-icon far fa-folder text-secondary" ]
+            []
+        , a
+            [ Attr.href "#"
+            , Attr.class "file-item-name"
+            ]
+            [ text (String.left ((String.length name) - 1) name) ]
+        , div
+            [ Attr.class "file-item-changed"
+            ]
+            [ text key.lastModified ]
+        , div
+            [ Attr.class "file-item-actions btn-group"
+            ]
+            [ button
+                [ Attr.type_ "button"
+                , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
+                , Attr.attribute "data-toggle" "dropdown"
+                ]
+                [ i
+                    [ Attr.class "ion ion-ios-more"
+                    ]
+                    []
+                ]
+            , div
+                [ Attr.class "dropdown-menu dropdown-menu-right"
+                ]
+                [ a
+                    [ Attr.class "dropdown-item"
+                    , Attr.href "#"
+                    ]
+                    [ text "Rename" ]
+                , a
+                    [ Attr.class "dropdown-item"
+                    , Attr.href "#"
+                    ]
+                    [ text "Move" ]
+                , a
+                    [ Attr.class "dropdown-item"
+                    , Attr.href "#"
+                    ]
+                    [ text "Copy" ]
+                , a
+                    [ Attr.class "dropdown-item"
+                    , Attr.href "#"
+                    ]
+                    [ text "Remove" ]
+                ]
+            ]
+        ]
+
+viewBack: List (Html Msg)
+viewBack =
+    [ div
+        [ Attr.class "file-item"
+        , onClick ClickedBack
+        ]
+        [ div
+            [ Attr.class "file-item-icon file-item-level-up fas fa-level-up-alt text-secondary"
+            ]
+            []
+        , a
+            [ Attr.href "javascript:void(0)"
+            , Attr.class "file-item-name"
+            ]
+            [ text ".." ]
+        ]
+    ]

@@ -30,7 +30,7 @@ init req flags =
         model =  { storage = Storage.storageFromJson flags }
     in
     ( model
-    , if model.storage.credentials /= Nothing && req.route == Gen.Route.Login then
+    , if model.storage.account /= Nothing && req.route == Gen.Route.Login then
         Request.replaceRoute Gen.Route.Home_ req
       else if req.route == Gen.Route.Logout then
         Request.replaceRoute Gen.Route.Login req

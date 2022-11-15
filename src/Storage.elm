@@ -9,16 +9,17 @@ port module Storage exposing
     , signOut
     )
 
-import Domain.Credentials exposing (Credentials, credDecoder, credEncoder)
 import Json.Decode as Decode exposing (Decoder, decodeValue, field, int, map, map2, nullable, string)
 import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode exposing (Value, encode, list, string)
 import List exposing (concatMap)
+import S3
+import S3.Types
 
 -- Model
 
 type alias Storage =
-    { credentials: Maybe Credentials
+    { account: Maybe S3.Types.Account
     }
 
 -- Ports
@@ -31,10 +32,13 @@ port load: (Decode.Value -> msg) -> Sub msg
 
 storageToJson: Storage -> Decode.Value
 storageToJson storage =
-    Encode.object
-        [ ("credentials", credEncoder storage.credentials)
-        ]
-
+    case storage.account of
+        Just account ->
+            Encode.object
+                [ ("account", S3.encodeAccount account)
+                ]
+        Nothing ->
+            Encode.object []
 
 -- Convert from JSON
 
@@ -50,20 +54,20 @@ storageFromJson json =
 storageDecoder: Decoder Storage
 storageDecoder =
     Decode.succeed Storage
-        |> required "credentials" (nullable credDecoder)
+        |> required "account" (nullable S3.accountDecoder)
 
 
 -- Auth
 
-signIn: Credentials -> Storage -> Cmd msg
-signIn cred storage =
-    { storage | credentials = Just cred }
+signIn: S3.Types.Account -> Storage -> Cmd msg
+signIn account storage =
+    { storage | account = Just account }
         |> storageToJson
         |> save
 
 signOut: Storage -> Cmd msg
 signOut storage =
-    { storage | credentials = Nothing}
+    { storage | account = Nothing}
         |> storageToJson
         |> save
 
@@ -72,7 +76,7 @@ signOut storage =
 
 init: Storage
 init =
-    { credentials = Nothing
+    { account = Nothing
     }
 
 -- Listen for storage updates

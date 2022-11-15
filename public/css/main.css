@@ -33,7 +33,7 @@
 /* File Manager */
 body{
     margin-top:20px;
-    background-color: #f5f5f5;
+    /*background-color: #f5f5f5;*/
 }
 .file-manager-actions {
     display: -ms-flexbox;
