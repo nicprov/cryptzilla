@@ -30,11 +30,12 @@ type Status
 type alias Model =
     { account: S3.Types.Account
     , status: Status
+    , encryptionKey: String
     }
 
 init : (Model, Cmd Msg)
 init =
-    (Model (S3.Types.Account "S3" (Just "") False "" "" []) None, Cmd.none)
+    (Model (S3.Types.Account "S3" (Just "") False "" "" []) None "", Cmd.none)
 
 -- Update
 
@@ -44,6 +45,7 @@ type Msg
     | ChangeAccessKey String
     | ChangeSecretKey String
     | ChangeBucket String
+    | ChangeEncryptionKey String
     | ClickedSignIn
 
 stringFromBool : Bool -> String
@@ -101,6 +103,10 @@ update shared req msg model =
             ( { model | account = newAccount }, Cmd.none)
 
 
+
+        ChangeEncryptionKey encryptionKey ->
+            ( { model | encryptionKey = encryptionKey }, Cmd.none)
+
         ClickedSignIn ->
             if model.account.accessKey == "" then
                 ( { model | status = Error "Access Key cannot be empty"}, Cmd.none)
@@ -108,11 +114,14 @@ update shared req msg model =
                 ( { model | status = Error "Endpoint cannot be empty"}, Cmd.none)
             else if model.account.buckets == [] then
                 ( { model | status = Error "Bucket cannot be empty"}, Cmd.none)
+            else if model.encryptionKey == "" then
+                ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
             else
                 (model, Cmd.batch [ Storage.signIn model.account shared.storage
                                   ,  Request.replaceRoute Gen.Route.Home_ req
                                   ]
                 )
+
 
 
 -- View
@@ -210,17 +219,19 @@ viewMain model =
             , onInput ChangeSecretKey
             ]
             []
-        , div
-            [ Attr.class "checkbox mb-3"
+        , label
+            [ Attr.class "sr-only"
             ]
-            [ label []
-                [ input
-                    [ Attr.type_ "checkbox"
-                    , Attr.value "remember-me"
-                    ]
-                    []
-                , text " Remember me" ]
+            [ text "Encryption key" ]
+        , input
+            [ Attr.type_ "password"
+            , Attr.class "form-control"
+            , Attr.placeholder "Secret"
+            , Attr.required True
+            , Attr.value model.encryptionKey
+            , onInput ChangeEncryptionKey
             ]
+            []
         , button
             [ Attr.class "btn btn-lg btn-primary btn-block"
             , Attr.type_ "submit"
