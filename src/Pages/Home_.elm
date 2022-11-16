@@ -16,7 +16,7 @@ import View exposing (View)
 page : Shared.Model -> Request -> Page.With Model Msg
 page shared _ =
     Page.element
-        { init = init
+        { init = init shared
         , update = update shared
         , view = view shared
         , subscriptions = \_ -> Sub.none
@@ -28,9 +28,15 @@ type alias Model =
     , currentDir: String
     }
 
-init : (Model, Cmd Msg)
-init =
-    (Model "" Nothing "", Cmd.none)
+init : Shared.Model -> (Model, Cmd Msg)
+init shared =
+    (Model "" Nothing ""
+    , case shared.storage.account of
+        Just account ->
+            listBucket account
+        Nothing ->
+            Cmd.none
+    )
 
 -- Update
 
@@ -143,13 +149,12 @@ viewMain model =
                     [ button
                         [ Attr.type_ "button"
                         , Attr.class "btn btn-primary mr-2"
-                        , onClick ListBucket
                         ]
                         [ i
                             [ Attr.class "ion ion-md-cloud-upload"
                             ]
                             []
-                        , text " Fetch" ]
+                        , text " Upload" ]
                     , button
                         [ Attr.type_ "button"
                         , Attr.class "btn btn-secondary icon-btn mr-2"
