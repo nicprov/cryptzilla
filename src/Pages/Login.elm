@@ -2,7 +2,7 @@ module Pages.Login exposing (Model, Msg, page)
 
 import Common.Alert exposing (viewAlertError)
 import Gen.Route
-import Html exposing (Html, a, button, div, form, h1, hr, i, img, input, label, li, main_, ol, option, p, select, span, text)
+import Html exposing (Html, a, br, button, div, form, h1, hr, i, img, input, label, li, main_, ol, option, p, select, small, span, text)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick, onInput)
 import List exposing (head)
@@ -31,11 +31,12 @@ type alias Model =
     { account: S3.Types.Account
     , status: Status
     , encryptionKey: String
+    , salt: String
     }
 
 init : (Model, Cmd Msg)
 init =
-    (Model (S3.Types.Account "S3" (Just "") False "" "" []) None "", Cmd.none)
+    (Model (S3.Types.Account "S3" (Just "") False "" "" []) None "" "", Cmd.none)
 
 -- Update
 
@@ -46,6 +47,7 @@ type Msg
     | ChangeSecretKey String
     | ChangeBucket String
     | ChangeEncryptionKey String
+    | ChangedSalt String
     | ClickedSignIn
 
 stringFromBool : Bool -> String
@@ -103,9 +105,12 @@ update shared req msg model =
             ( { model | account = newAccount }, Cmd.none)
 
 
-
         ChangeEncryptionKey encryptionKey ->
             ( { model | encryptionKey = encryptionKey }, Cmd.none)
+
+
+        ChangedSalt salt ->
+            ( { model | salt = salt }, Cmd.none)
 
         ClickedSignIn ->
             if model.account.accessKey == "" then
@@ -117,11 +122,10 @@ update shared req msg model =
             else if model.encryptionKey == "" then
                 ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
             else
-                (model, Cmd.batch [ Storage.signIn model.account shared.storage
+                (model, Cmd.batch [ Storage.signIn model.account model.encryptionKey model.salt shared.storage
                                   ,  Request.replaceRoute Gen.Route.Home_ req
                                   ]
                 )
-
 
 
 -- View
@@ -146,102 +150,141 @@ viewMain model =
             Error msg -> viewAlertError msg
             None -> div [] []
         )
-        , label
-            [ Attr.class "sr-only"
+        , div []
+            [ div
+                [ Attr.class "form-group"
+                ]
+                [ label
+                    []
+                    [ text "Region" ]
+                , input
+                    [ Attr.class "form-control"
+                    , Attr.value ( case model.account.region of
+                                 Just region -> region
+                                 Nothing -> ""
+                             )
+                         , onInput ChangeRegion
+                    ]
+                    []
+                , small
+                    [ Attr.class "form-text text-muted"
+                    ]
+                    [ text "S3 region used (ie. us-west-1 for AWS, or nyc3 for Digital Ocean)" ]
+                ]
+            , div
+                [ Attr.class "form-group"
+                ]
+                [ label
+                    [ ]
+                    [ text "Is Digital Ocean" ]
+                , select
+                    [ Attr.class "form-control"
+                    , Attr.id "exampleFormControlSelect1"
+                    , Attr.value (stringFromBool model.account.isDigitalOcean)
+                    , onInput ChangeIsDigitalOcean
+                    ]
+                    [ option []
+                        [ text "False" ]
+                    , option []
+                        [ text "True" ]
+                    ]
+                , small
+                    [ Attr.class "form-text text-muted"
+                    ]
+                    [ text "Indicate whether the bucket is hosted on AWS or Digital Ocean" ]
+                ]
+            , div
+                [ Attr.class "form-group"
+                ]
+                [ label
+                    [ ]
+                    [ text "Bucket Name" ]
+                , input
+                    [ Attr.class "form-control"
+                    , Attr.required True
+                    , Attr.autofocus True
+                    , Attr.value (case (head model.account.buckets) of
+                        Just item -> item
+                        Nothing -> ""
+                        )
+                    , onInput ChangeBucket
+                    ]
+                    []
+                ]
+            , div
+                [ Attr.class "form-group"
+                ]
+                [ label
+                    [ ]
+                    [ text "Access Key" ]
+                , input
+                    [ Attr.class "form-control"
+                    , Attr.required True
+                    , Attr.autofocus True
+                    , Attr.value model.account.accessKey
+                    , onInput ChangeAccessKey
+                    ]
+                    []
+                ]
+            , div
+                [ ]
+                [ label
+                    [ ]
+                    [ text "Secret Key" ]
+                , input
+                    [ Attr.type_ "password"
+                    , Attr.class "form-control"
+                    , Attr.required True
+                    , Attr.value model.account.secretKey
+                    , onInput ChangeSecretKey
+                    ]
+                    []
+                ]
+            , div
+                [ ]
+                [ label
+                    [ ]
+                    [ text "Encryption Key" ]
+                , input
+                    [ Attr.type_ "password"
+                    , Attr.class "form-control"
+                    , Attr.required True
+                    , Attr.value model.encryptionKey
+                    , onInput ChangeEncryptionKey
+                    ]
+                    []
+                , small
+                    [ Attr.class "form-text text-muted"
+                    ]
+                    [ text "Must be the encryption key found in the rclone config file because it is padded" ]
+                ]
+            , div
+                [ ]
+                [ label
+                    [ ]
+                    [ text "Salt" ]
+                , input
+                    [ Attr.type_ "password"
+                    , Attr.class "form-control"
+                    , Attr.required True
+                    , Attr.value model.salt
+                    , onInput ChangedSalt
+                    ]
+                    []
+                , small
+                    [ Attr.class "form-text text-muted"
+                    ]
+                    [ text "Optional (leave blank for empty), but must be the salt found in the rclone config file (named Password2) because it is padded" ]
+                ]
+            , br [] []
+            , button
+                [ Attr.type_ "submit"
+                , Attr.class "btn btn-primary"
+                , onClick ClickedSignIn
+                ]
+                [ text "Log in" ]
             ]
-            [ text "Region" ]
-        , input
-            [ Attr.class "form-control"
-            , Attr.placeholder "Region"
-            , Attr.required True
-            , Attr.autofocus True
-            , Attr.value ( case model.account.region of
-                    Just region -> region
-                    Nothing -> ""
-                )
-            , onInput ChangeRegion
-            ]
-            []
-        , label
-            [ Attr.class "sr-only"
-            ]
-            [ text "Digital Ocean" ]
-        , select
-            [ Attr.class "form-control"
-            , Attr.id "exampleFormControlSelect1"
-            , Attr.value (stringFromBool model.account.isDigitalOcean)
-            , onInput ChangeIsDigitalOcean
-            ]
-            [ option []
-                [ text "False" ]
-            , option []
-                [ text "True" ]
-            ]
-        , label
-            [ Attr.class "sr-only"
-            ]
-            [ text "Bucket" ]
-        , input
-            [ Attr.class "form-control"
-            , Attr.placeholder "Bucket"
-            , Attr.required True
-            , Attr.autofocus True
-            , Attr.value (case (head model.account.buckets) of
-                Just item -> item
-                Nothing -> ""
-                )
-            , onInput ChangeBucket
-            ]
-            []
-        , label
-            [ Attr.class "sr-only"
-            ]
-            [ text "Access Key" ]
-        , input
-            [ Attr.class "form-control"
-            , Attr.placeholder "Access Key"
-            , Attr.required True
-            , Attr.autofocus True
-            , Attr.value model.account.accessKey
-            , onInput ChangeAccessKey
-            ]
-            []
-        , label
-            [ Attr.class "sr-only"
-            ]
-            [ text "Secret" ]
-        , input
-            [ Attr.type_ "password"
-            , Attr.class "form-control"
-            , Attr.placeholder "Secret"
-            , Attr.required True
-            , Attr.value model.account.secretKey
-            , onInput ChangeSecretKey
-            ]
-            []
-        , label
-            [ Attr.class "sr-only"
-            ]
-            [ text "Encryption key" ]
-        , input
-            [ Attr.type_ "password"
-            , Attr.class "form-control"
-            , Attr.placeholder "Secret"
-            , Attr.required True
-            , Attr.value model.encryptionKey
-            , onInput ChangeEncryptionKey
-            ]
-            []
-        , button
-            [ Attr.class "btn btn-lg btn-primary btn-block"
-            , Attr.type_ "submit"
-            , onClick ClickedSignIn
-            ]
-            [ text "Sign in" ]
-        , p
-            [ Attr.class "mt-5 mb-3 text-muted"
-            ]
-            [ text "© 2022" ]
+
         ]
 
 

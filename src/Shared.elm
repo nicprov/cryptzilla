@@ -1,4 +1,4 @@
-module Shared exposing
+port module Shared exposing
     ( Flags
     , Model
     , Msg
@@ -21,8 +21,23 @@ type alias Model =
     { storage : Storage
     }
 
+type alias CryptMessage =
+    { action: String -- Encrypt/Decrypt
+    , message: String -- Cleartext/Cipher
+    , messageType: String -- Path/File
+    , password: String
+    , salt: String
+    }
+
 type Msg
     = StorageUpdated Storage
+
+
+
+-- Ports
+
+port crypt: CryptMessage -> Cmd msg
+port messageReceiver: (String -> msg) -> Sub msg
 
 init : Request -> Flags -> ( Model, Cmd Msg )
 init req flags =
@@ -32,6 +47,8 @@ init req flags =
     ( model
     , if model.storage.account /= Nothing && req.route == Gen.Route.Login then
         Request.replaceRoute Gen.Route.Home_ req
+      else if model.storage.account == Nothing && req.route == Gen.Route.Home_ then
+        Request.replaceRoute Gen.Route.Login req
       else if req.route == Gen.Route.Logout then
         Request.replaceRoute Gen.Route.Login req
       else

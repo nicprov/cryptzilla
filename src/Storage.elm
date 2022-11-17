@@ -10,7 +10,7 @@ port module Storage exposing
     )
 
 import Json.Decode as Decode exposing (Decoder, decodeValue, field, int, map, map2, nullable, string)
-import Json.Decode.Pipeline exposing (required)
+import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode exposing (Value, encode, list, string)
 import List exposing (concatMap)
 import S3
@@ -20,6 +20,8 @@ import S3.Types
 
 type alias Storage =
     { account: Maybe S3.Types.Account
+    , encryptionKey: String
+    , salt: String
     }
 
 -- Ports
@@ -36,6 +38,8 @@ storageToJson storage =
         Just account ->
             Encode.object
                 [ ("account", S3.encodeAccount account)
+                , ("encryptionKey", Encode.string storage.encryptionKey)
+                , ("salt", Encode.string storage.salt)
                 ]
         Nothing ->
             Encode.object []
@@ -55,19 +59,20 @@ storageDecoder: Decoder Storage
 storageDecoder =
     Decode.succeed Storage
         |> required "account" (nullable S3.accountDecoder)
-
+        |> required "encryptionKey" Decode.string
+        |> required "salt" Decode.string
 
 -- Auth
 
-signIn: S3.Types.Account -> Storage -> Cmd msg
-signIn account storage =
-    { storage | account = Just account }
+signIn: S3.Types.Account -> String -> String -> Storage -> Cmd msg
+signIn account key salt storage =
+    { storage | account = Just account, encryptionKey = key, salt = salt }
         |> storageToJson
         |> save
 
 signOut: Storage -> Cmd msg
 signOut storage =
-    { storage | account = Nothing}
+    { storage | account = Nothing, encryptionKey = "", salt = ""}
         |> storageToJson
         |> save
 
@@ -77,6 +82,8 @@ signOut storage =
 init: Storage
 init =
     { account = Nothing
+    , encryptionKey = ""
+    , salt = ""
     }
 
 -- Listen for storage updates
