@@ -1,13 +1,16 @@
 module Pages.Home_ exposing (Model, Msg, page)
 
+import Compare exposing (Comparator)
 import Html exposing (Html, a, button, div, hr, i, input, label, li, ol, span, text)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick)
 import List exposing (head)
+import List.Extra exposing (uniqueBy)
 import Page
 import Request exposing (Request)
 import S3
 import S3.Types exposing (Error, KeyList, QueryElement(..))
+import Set exposing (Set)
 import Shared
 import Task
 import View exposing (View)
@@ -26,11 +29,12 @@ type alias Model =
     { display: String
     , keyList: Maybe KeyList
     , currentDir: String
+    , folderList: List(S3.Types.KeyInfo)
     }
 
 init : Shared.Model -> (Model, Cmd Msg)
 init shared =
-    (Model "" Nothing ""
+    (Model "" Nothing "" []
     , case shared.storage.account of
         Just account ->
             listBucket account
@@ -59,6 +63,35 @@ listBucket account =
         |> S3.send account
         |> Task.attempt ReceiveListBucket
 
+removeFiles: S3.Types.KeyInfo ->  S3.Types.KeyInfo
+removeFiles key =
+    let
+        file = String.split "/" key.key
+    in
+    case List.head (List.reverse file) of
+        Just element ->
+            if element == "" then -- already a folder, do nothing
+                key
+            else
+                let
+                    tempName = List.drop 1 (List.reverse file) -- drop file name
+                    fixedName = List.map (\m -> m ++ "/") tempName
+                in
+                { key | key = String.concat fixedName}
+        Nothing ->
+            key
+
+
+isFolder: S3.Types.KeyInfo -> Bool
+isFolder key =
+    let
+        file = String.split "/" key.key
+    in
+    if (List.length file) >= 2 then
+        True
+    else
+        False
+
 update: Shared.Model -> Msg -> Model -> (Model, Cmd Msg)
 update shared msg model =
     case msg of
@@ -79,9 +112,14 @@ update shared msg model =
                     )
 
                 Ok keys ->
+                    let
+                        reducedFolder = List.map removeFiles keys.keys
+                        folders = List.filter isFolder reducedFolder
+                    in
                     ( { model
                         | display = "Bucket listing received."
                         , keyList = Just keys
+                        , folderList = uniqueBy (\k -> k.key) folders
                       }
                     , Cmd.none
                     )
@@ -100,7 +138,7 @@ update shared msg model =
 -- View
 
 view : Shared.Model -> Model -> View Msg
-view shared model =
+view _ model =
     { title = "File Manager"
     , body = [ viewMain model
              ]
@@ -245,16 +283,17 @@ viewMain model =
         , div
             [ Attr.class "file-manager-container file-manager-col-view"
             ]
-            (List.append viewBack
+            (List.append
+                (List.append viewBack (List.map (viewFolderItem model) model.folderList))
                 (case model.keyList of
-                    Just keyList -> List.map (viewItem model) keyList.keys
+                    Just keyList -> List.map (viewFileItem model) keyList.keys
                     Nothing -> []
                 )
             )
         ]
 
-viewItem: Model -> S3.Types.KeyInfo -> Html Msg
-viewItem model key =
+viewFileItem: Model -> S3.Types.KeyInfo -> Html Msg
+viewFileItem model key =
     if String.contains model.currentDir key.key then
         let
             name = String.replace model.currentDir "" key.key
@@ -263,15 +302,15 @@ viewItem model key =
         if name /= "" then
             if (List.length file) == 1 then
                 viewFile model key
-            else if (List.length file) == 2 then
-                case List.head (List.reverse file) of
-                    Just element ->
-                        if element == "" then
-                            viewFolder model key
-                        else
-                            div [] []
-                    Nothing ->
-                        div [] []
+            --else if (List.length file) == 2 then
+                --case List.head (List.reverse file) of
+                --    Just element ->
+                --        if element == "" then -- will not show folders that have content in them
+                --            viewFolder model key
+                --        else
+                --            div [] []
+                --    Nothing ->
+                --        div [] []
             else
                 div [] []
         else
@@ -355,6 +394,16 @@ viewFile model key =
                 ]
             ]
         ]
+
+viewFolderItem: Model -> S3.Types.KeyInfo -> Html Msg
+viewFolderItem model key =
+    if String.contains model.currentDir key.key then
+        if model.currentDir /= key.key then
+            viewFolder model key
+        else
+            div [] []
+    else
+        div [] []
 
 viewFolder: Model -> S3.Types.KeyInfo -> Html Msg
 viewFolder model key =
