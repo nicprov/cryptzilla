@@ -157,27 +157,7 @@ viewMain model =
             [ ol
                 [ Attr.class "breadcrumb text-big container-p-x py-3 m-0"
                 ]
-                [ li
-                    [ Attr.class "breadcrumb-item"
-                    ]
-                    [ a
-                        [ Attr.href "#"
-                        ]
-                        [ text "home" ]
-                    ]
-                , li
-                    [ Attr.class "breadcrumb-item"
-                    ]
-                    [ a
-                        [ Attr.href "#"
-                        ]
-                        [ text "projects" ]
-                    ]
-                , li
-                    [ Attr.class "breadcrumb-item active"
-                    ]
-                    [ text "site" ]
-                ]
+                (List.map (viewFilePath model) (String.split "/" model.currentDir))
             , hr
                 [ Attr.class "m-0"
                 ]
@@ -297,6 +277,22 @@ viewMain model =
                 Nothing -> []
             )
         ]
+
+viewFilePath: Model -> String -> Html Msg
+viewFilePath model dir =
+    li
+        [ Attr.class "breadcrumb-item active"
+        ]
+        [ a
+            [ Attr.href "#"
+            ]
+            (if model.currentDir == "" then
+                [ text "home" ]
+             else
+                [ text dir ]
+            )
+        ]
+
 
 viewFileItem: Model -> S3.Types.KeyInfo -> Html Msg
 viewFileItem model key =
