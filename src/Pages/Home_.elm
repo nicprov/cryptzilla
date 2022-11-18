@@ -2,6 +2,7 @@ module Pages.Home_ exposing (Model, Msg, page)
 
 import Common.Alert exposing (viewAlertError)
 import Compare exposing (Comparator)
+import Gen.Route
 import Html exposing (Html, a, button, div, hr, i, input, label, li, ol, span, text)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick)
@@ -13,15 +14,16 @@ import S3
 import S3.Types exposing (Error, KeyList, QueryElement(..))
 import Set exposing (Set)
 import Shared
+import Storage
 import Task
 import View exposing (View)
 
 
 page : Shared.Model -> Request -> Page.With Model Msg
-page shared _ =
+page shared req =
     Page.element
         { init = init shared
-        , update = update shared
+        , update = update shared req
         , view = view shared
         , subscriptions = \_ -> Sub.none
         }
@@ -50,6 +52,7 @@ type Msg
     | ListBucket
     | ClickFolder String
     | ClickedBack
+    | ClickedLogout
 
 listBucket : S3.Types.Account -> Cmd Msg
 listBucket account =
@@ -94,8 +97,8 @@ isFolder key =
         False
 
 
-update: Shared.Model -> Msg -> Model -> (Model, Cmd Msg)
-update shared msg model =
+update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
+update shared req msg model =
     case msg of
 
         ListBucket ->
@@ -136,6 +139,12 @@ update shared msg model =
                 newDirList =  List.map (\m -> m ++ "/") tempList
             in
             ( { model | currentDir = String.concat newDirList }, Cmd.none)
+
+        ClickedLogout ->
+            ( model, Cmd.batch [ Storage.signOut shared.storage
+                               , Request.replaceRoute Gen.Route.Login req
+                               ]
+            )
 
 -- View
 
@@ -224,35 +233,16 @@ viewMain model =
                         [ Attr.class "btn-group btn-group-toggle"
                         , Attr.attribute "data-toggle" "buttons"
                         ]
-                        [ label
-                            [ Attr.class "btn btn-default icon-btn md-btn-flat active"
+                        [ button
+                            [ Attr.type_ "button"
+                            , Attr.class "btn btn-danger mr-2"
+                            , onClick ClickedLogout
                             ]
-                            [ input
-                                [ Attr.type_ "radio"
-                                , Attr.name "file-manager-view"
-                                , Attr.value "file-manager-col-view"
-                                , Attr.checked True
+                            [ i
+                                [ Attr.class "icon ion-log-out"
                                 ]
                                 []
-                            , span
-                                [ Attr.class "ion ion-md-apps"
-                                ]
-                                []
-                            ]
-                        , label
-                            [ Attr.class "btn btn-default icon-btn md-btn-flat"
-                            ]
-                            [ input
-                                [ Attr.type_ "radio"
-                                , Attr.name "file-manager-view"
-                                , Attr.value "file-manager-row-view"
-                                ]
-                                []
-                            , span
-                                [ Attr.class "ion ion-md-menu"
-                                ]
-                                []
-                            ]
+                            , text "Logout" ]
                         ]
                     ]
                 ]
@@ -281,7 +271,7 @@ viewMain model =
 viewFilePath: Model -> String -> Html Msg
 viewFilePath model dir =
     li
-        [ Attr.class "breadcrumb-item active"
+        [ Attr.class "breadcrumb-item"
         ]
         [ a
             [ Attr.href "#"
