@@ -135,7 +135,7 @@ update shared req msg model =
 
         ClickedBack ->
             let
-                tempList = List.drop 2 (List.reverse (String.split "/" model.currentDir))
+                tempList = List.reverse (List.drop 2 (List.reverse (String.split "/" model.currentDir)))
                 newDirList =  List.map (\m -> m ++ "/") tempList
             in
             ( { model | currentDir = String.concat newDirList }, Cmd.none)
@@ -149,14 +149,14 @@ update shared req msg model =
 -- View
 
 view : Shared.Model -> Model -> View Msg
-view _ model =
+view shared model =
     { title = "File Manager"
-    , body = [ viewMain model
+    , body = [ viewMain model shared.storage.account
              ]
     }
 
-viewMain: Model -> Html Msg
-viewMain model =
+viewMain: Model -> Maybe S3.Types.Account-> Html Msg
+viewMain model account =
     div
         [ Attr.class "container flex-grow-1 light-style container-p-y"
         ]
@@ -166,7 +166,22 @@ viewMain model =
             [ ol
                 [ Attr.class "breadcrumb text-big container-p-x py-3 m-0"
                 ]
-                (List.map (viewFilePath model) (String.split "/" model.currentDir))
+                ( case account of
+                    Just a ->
+                        ( List.append [viewFilePath
+                            (case (List.head a.buckets) of
+                                Just bucket ->
+                                    bucket
+                                Nothing ->
+                                    ""
+                            )
+                            ]
+                          (List.map viewFilePath (String.split "/" model.currentDir))
+                        )
+                    Nothing ->
+                        (List.map viewFilePath (String.split "/" model.currentDir))
+                )
+
             , hr
                 [ Attr.class "m-0"
                 ]
@@ -268,19 +283,15 @@ viewMain model =
             )
         ]
 
-viewFilePath: Model -> String -> Html Msg
-viewFilePath model dir =
+viewFilePath: String -> Html Msg
+viewFilePath dir =
     li
         [ Attr.class "breadcrumb-item"
         ]
         [ a
             [ Attr.href "#"
             ]
-            (if model.currentDir == "" then
-                [ text "home" ]
-             else
-                [ text dir ]
-            )
+            [ text dir ]
         ]
 
 
@@ -291,11 +302,8 @@ viewFileItem model key =
             name = String.replace model.currentDir "" key.key
             file = String.split "/" name
         in
-        if name /= "" then
-            if (List.length file) == 1 then
-                viewFile model key
-            else
-                div [] []
+        if name /= "" && (List.length file) == 1 then
+            viewFile model key
         else
             div [] []
     else
@@ -381,7 +389,11 @@ viewFile model key =
 viewFolderItem: Model -> S3.Types.KeyInfo -> Html Msg
 viewFolderItem model key =
     if String.contains model.currentDir key.key then
-        if model.currentDir /= key.key then
+        let
+            tempFolder = String.replace model.currentDir "" key.key
+        in
+
+        if model.currentDir /= key.key && (List.length (String.split "/" tempFolder)) == 2 then
             viewFolder model key
         else
             div [] []
