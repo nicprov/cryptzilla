@@ -1,5 +1,6 @@
 module Pages.Home_ exposing (Model, Msg, page)
 
+import Common.Alert exposing (viewAlertError)
 import Compare exposing (Comparator)
 import Html exposing (Html, a, button, div, hr, i, input, label, li, ol, span, text)
 import Html.Attributes as Attr
@@ -91,6 +92,7 @@ isFolder key =
         True
     else
         False
+
 
 update: Shared.Model -> Msg -> Model -> (Model, Cmd Msg)
 update shared msg model =
@@ -283,12 +285,16 @@ viewMain model =
         , div
             [ Attr.class "file-manager-container file-manager-col-view"
             ]
-            (List.append
-                (List.append viewBack (List.map (viewFolderItem model) model.folderList))
-                (case model.keyList of
-                    Just keyList -> List.map (viewFileItem model) keyList.keys
-                    Nothing -> []
-                )
+            (case model.keyList of
+                Just keyList ->
+                    if List.length keyList.keys /= 0 then
+                        (List.append
+                            (List.append viewBack (List.map (viewFolderItem model) model.folderList))
+                            (List.map (viewFileItem model) keyList.keys)
+                        )
+                    else
+                        [viewAlertError "No files to show"]
+                Nothing -> []
             )
         ]
 
@@ -302,15 +308,6 @@ viewFileItem model key =
         if name /= "" then
             if (List.length file) == 1 then
                 viewFile model key
-            --else if (List.length file) == 2 then
-                --case List.head (List.reverse file) of
-                --    Just element ->
-                --        if element == "" then -- will not show folders that have content in them
-                --            viewFolder model key
-                --        else
-                --            div [] []
-                --    Nothing ->
-                --        div [] []
             else
                 div [] []
         else
