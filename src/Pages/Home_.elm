@@ -1,9 +1,8 @@
 module Pages.Home_ exposing (Model, Msg, page)
 
 import Common.Alert exposing (viewAlertError)
-import Compare exposing (Comparator)
 import Gen.Route
-import Html exposing (Html, a, button, div, hr, i, input, label, li, ol, span, text)
+import Html exposing (Html, a, button, div, hr, i, img, input, label, li, nav, ol, option, section, select, span, table, tbody, td, text, th, thead, tr, ul)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick)
 import List exposing (head)
@@ -12,7 +11,6 @@ import Page
 import Request exposing (Request)
 import S3
 import S3.Types exposing (Error, KeyList, QueryElement(..))
-import Set exposing (Set)
 import Shared
 import Storage
 import Task
@@ -53,6 +51,7 @@ type Msg
     | ClickFolder String
     | ClickedBack
     | ClickedLogout
+    | ClickedFilePath String
 
 listBucket : S3.Types.Account -> Cmd Msg
 listBucket account =
@@ -146,6 +145,10 @@ update shared req msg model =
                                ]
             )
 
+        ClickedFilePath dir ->
+            ( model, Cmd.none )
+
+
 -- View
 
 view : Shared.Model -> Model -> View Msg
@@ -158,141 +161,500 @@ view shared model =
 viewMain: Model -> Maybe S3.Types.Account-> Html Msg
 viewMain model account =
     div
-        [ Attr.class "container flex-grow-1 light-style container-p-y"
+        [ Attr.id "wrapper"
         ]
         [ div
-            [ Attr.class "container-m-nx container-m-ny bg-lightest mb-3"
+            [ Attr.id "inner"
             ]
-            [ ol
-                [ Attr.class "breadcrumb text-big container-p-x py-3 m-0"
+            [ div
+                [ Attr.attribute "data-v-081c0a81" ""
+                , Attr.id "dropzone"
+                , Attr.class "container"
                 ]
-                ( case account of
-                    Just a ->
-                        ( List.append [viewFilePath
-                            (case (List.head a.buckets) of
-                                Just bucket ->
-                                    bucket
-                                Nothing ->
-                                    ""
-                            )
-                            ]
-                          (List.map viewFilePath (String.split "/" model.currentDir))
-                        )
-                    Nothing ->
-                        (List.map viewFilePath (String.split "/" model.currentDir))
-                )
-
-            , hr
-                [ Attr.class "m-0"
-                ]
-                []
-            , div
-                [ Attr.class "file-manager-actions container-p-x py-2"
-                ]
-                [ div []
-                    [ button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-primary mr-2"
+                [ div
+                    [ Attr.attribute "data-v-07f55d0a" ""
+                    , Attr.attribute "data-v-081c0a81" ""
+                    ]
+                    []
+                , div
+                    [ Attr.attribute "data-v-081c0a81" ""
+                    , Attr.class "container"
+                    ]
+                    [ nav
+                        [ Attr.attribute "data-v-cd57c856" ""
+                        , Attr.attribute "data-v-081c0a81" ""
+                        , Attr.attribute "role" "navigation"
+                        , Attr.attribute "aria-label" "main navigation"
+                        , Attr.class "navbar"
                         ]
-                        [ i
-                            [ Attr.class "ion ion-md-cloud-upload"
-                            ]
-                            []
-                        , text " Upload" ]
-                    , button
-                        [ Attr.type_ "button"
-                        , Attr.class "btn btn-secondary icon-btn mr-2"
-                        , Attr.disabled True
-                        ]
-                        [ i
-                            [ Attr.class "ion ion-md-cloud-download"
-                            ]
-                            []
-                        ]
-                    , div
-                        [ Attr.class "btn-group mr-2"
-                        ]
-                        [ button
-                            [ Attr.type_ "button"
-                            , Attr.class "btn btn-default md-btn-flat dropdown-toggle px-2"
-                            , Attr.attribute "data-toggle" "dropdown"
-                            ]
-                            [ i
-                                [ Attr.class "ion ion-ios-settings"
-                                ]
-                                []
-                            ]
-                        , div
-                            [ Attr.class "dropdown-menu"
+                        [ div
+                            [ Attr.attribute "data-v-cd57c856" ""
+                            , Attr.class "navbar-brand"
                             ]
                             [ a
-                                [ Attr.class "dropdown-item"
-                                , Attr.href "#"
+                                [ Attr.attribute "data-v-cd57c856" ""
+                                , Attr.class "navbar-item logo"
                                 ]
-                                [ text "Move" ]
+                                [ img
+                                    [ Attr.attribute "data-v-cd57c856" ""
+                                    , Attr.src "https://filegator.io/filegator_logo.svg"
+                                    ]
+                                    []
+                                ]
                             , a
-                                [ Attr.class "dropdown-item"
-                                , Attr.href "#"
+                                [ Attr.attribute "data-v-cd57c856" ""
+                                , Attr.attribute "role" "button"
+                                , Attr.attribute "aria-label" "menu"
+                                , Attr.attribute "aria-expanded" "false"
+                                , Attr.class "navbar-burger burger"
                                 ]
-                                [ text "Copy" ]
-                            , a
-                                [ Attr.class "dropdown-item"
-                                , Attr.href "#"
+                                [ span
+                                    [ Attr.attribute "data-v-cd57c856" ""
+                                    , Attr.attribute "aria-hidden" "true"
+                                    ]
+                                    []
+                                , span
+                                    [ Attr.attribute "data-v-cd57c856" ""
+                                    , Attr.attribute "aria-hidden" "true"
+                                    ]
+                                    []
+                                , span
+                                    [ Attr.attribute "data-v-cd57c856" ""
+                                    , Attr.attribute "aria-hidden" "true"
+                                    ]
+                                    []
                                 ]
-                                [ text "Remove" ]
+                            ]
+                        , div
+                            [ Attr.attribute "data-v-cd57c856" ""
+                            , Attr.class "navbar-menu"
+                            ]
+                            [ div
+                                [ Attr.attribute "data-v-cd57c856" ""
+                                , Attr.class "navbar-end"
+                                ]
+                                [ a
+                                    [ Attr.attribute "data-v-cd57c856" ""
+                                    , Attr.class "navbar-item logout"
+                                    ]
+                                    [ text "Log out" ]
+                                ]
+                            ]
+                        ]
+                    , div
+                        [ Attr.attribute "data-v-081c0a81" ""
+                        , Attr.id "browser"
+                        ]
+                        [ div
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.class "is-flex is-justify-between"
+                            ]
+                            [ div
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.attribute "aria-label" "breadcrumbs"
+                                , Attr.class "breadcrumb"
+                                , Attr.style "background-color" "white"
+                                ]
+                                [ ul
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    ]
+                                    ( case account of
+                                        Just a ->
+                                            ( List.append [viewFilePath
+                                                (case (List.head a.buckets) of
+                                                    Just bucket ->
+                                                        bucket
+                                                    Nothing ->
+                                                        ""
+                                                )
+                                                ]
+                                              (List.map viewFilePath (String.split "/" model.currentDir))
+                                            )
+                                        Nothing ->
+                                            (List.map viewFilePath (String.split "/" model.currentDir))
+                                    )
+                                ]
+                            , div
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                ]
+                                [ a
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.id "search"
+                                    , Attr.class "search-btn"
+                                    ]
+                                    [ span
+                                        [ Attr.attribute "data-v-081c0a81" ""
+                                        , Attr.class "icon is-small"
+                                        ]
+                                        [ i
+                                            [ Attr.class "fas fa-search"
+                                            ]
+                                            []
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        , section
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.id "multi-actions"
+                            , Attr.class "is-flex is-justify-between"
+                            ]
+                            [ div
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                ]
+                                [ div
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "field file is-inline-block"
+                                    ]
+                                    [ label
+                                        [ Attr.attribute "data-v-081c0a81" ""
+                                        , Attr.class "upload control"
+                                        ]
+                                        [ a
+                                            [ Attr.attribute "data-v-081c0a81" ""
+                                            , Attr.class "is-inline-block"
+                                            ]
+                                            [ span
+                                                [ Attr.attribute "data-v-081c0a81" ""
+                                                , Attr.class "icon is-small"
+                                                ]
+                                                [ i
+                                                    [ Attr.class "fas fa-upload"
+                                                    ]
+                                                    []
+                                                ]
+                                            , text " Add files" ]
+                                        , input
+                                            [ Attr.type_ "file"
+                                            , Attr.multiple True
+                                            , Attr.class ""
+                                            ]
+                                            []
+                                        ]
+                                    ]
+                                , a
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "add-new is-inline-block"
+                                    ]
+                                    [ div
+                                        [ Attr.attribute "data-v-081c0a81" ""
+                                        , Attr.class "dropdown is-mobile-modal"
+                                        ]
+                                        [ div
+                                            [ Attr.attribute "role" "button"
+                                            , Attr.attribute "aria-haspopup" "true"
+                                            , Attr.class "dropdown-trigger"
+                                            ]
+                                            [ span
+                                                [ Attr.attribute "data-v-081c0a81" ""
+                                                ]
+                                                [ span
+                                                    [ Attr.attribute "data-v-081c0a81" ""
+                                                    , Attr.class "icon is-small"
+                                                    ]
+                                                    [ i
+                                                        [ Attr.class "fas fa-plus"
+                                                        ]
+                                                        []
+                                                    ]
+                                                , text " New" ]
+                                            ]
+                                        , div
+                                            [ Attr.attribute "aria-hidden" "true"
+                                            , Attr.class "background"
+                                            , Attr.style "display" "none"
+                                            ]
+                                            []
+                                        , div
+                                            [ Attr.attribute "aria-hidden" "true"
+                                            , Attr.class "dropdown-menu"
+                                            , Attr.style "display" "none"
+                                            ]
+                                            [ div
+                                                [ Attr.attribute "role" "list"
+                                                , Attr.class "dropdown-content"
+                                                ]
+                                                [ a
+                                                    [ Attr.attribute "data-v-081c0a81" ""
+                                                    , Attr.attribute "role" "listitem"
+                                                    , Attr.tabindex 0
+                                                    , Attr.class "dropdown-item"
+                                                    ]
+                                                    [ span
+                                                        [ Attr.attribute "data-v-081c0a81" ""
+                                                        , Attr.class "icon is-small"
+                                                        ]
+                                                        [ i
+                                                            [ Attr.class "fas fa-folder"
+                                                            ]
+                                                            []
+                                                        ]
+                                                    , text "Folder" ]
+                                                , a
+                                                    [ Attr.attribute "data-v-081c0a81" ""
+                                                    , Attr.attribute "role" "listitem"
+                                                    , Attr.tabindex 0
+                                                    , Attr.class "dropdown-item"
+                                                    ]
+                                                    [ span
+                                                        [ Attr.attribute "data-v-081c0a81" ""
+                                                        , Attr.class "icon is-small"
+                                                        ]
+                                                        [ i
+                                                            [ Attr.class "fas fa-file"
+                                                            ]
+                                                            []
+                                                        ]
+                                                    , text "File" ]
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            , div
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.id "pagination"
+                                ]
+                                [ div
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    ]
+                                    [ div
+                                        [ Attr.class "control"
+                                        ]
+                                        [ span
+                                            [ Attr.class "select is-small"
+                                            ]
+                                            [ select []
+                                                [ option
+                                                    [ Attr.value ""
+                                                    ]
+                                                    [ text "No pagination" ]
+                                                , option
+                                                    [ Attr.value "5"
+                                                    ]
+                                                    [ text "5 Per Page" ]
+                                                , option
+                                                    [ Attr.value "10"
+                                                    ]
+                                                    [ text "10 Per Page" ]
+                                                , option
+                                                    [ Attr.value "15"
+                                                    ]
+                                                    [ text "15 Per Page" ]
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        , div
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.class "b-table"
+                            ]
+                            [ div
+                                [ Attr.class "field table-mobile-sort"
+                                ]
+                                [ div
+                                    [ Attr.class "field has-addons"
+                                    ]
+                                    [ div
+                                        [ Attr.class "control is-expanded"
+                                        ]
+                                        [ span
+                                            [ Attr.class "select is-fullwidth"
+                                            ]
+                                            [ select []
+                                                [ option
+                                                    [ Attr.value "[object Object]"
+                                                    ]
+                                                    [ text "Name" ]
+                                                , option
+                                                    [ Attr.value "[object Object]"
+                                                    ]
+                                                    [ text "Size" ]
+                                                , option
+                                                    [ Attr.value "[object Object]"
+                                                    ]
+                                                    [ text "Time" ]
+                                                ]
+                                            ]
+                                        ]
+                                    , div
+                                        [ Attr.class "control"
+                                        ]
+                                        [ button
+                                            [ Attr.class "button is-primary"
+                                            ]
+                                            [ span
+                                                [ Attr.class "icon is-small"
+                                                ]
+                                                [ i
+                                                    [ Attr.class "fas fa-arrow-up"
+                                                    ]
+                                                    []
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            , div
+                                [ Attr.class "table-wrapper"
+                                ]
+                                [ table
+                                    [ Attr.class "table has-mobile-cards is-hoverable"
+                                    ]
+                                    [ thead []
+                                        [ tr []
+                                            [ th
+                                                [ Attr.class "checkbox-cell"
+                                                ]
+                                                [ label
+                                                    [ Attr.class "b-checkbox checkbox"
+                                                    ]
+                                                    [ input
+                                                        [ Attr.type_ "checkbox"
+                                                        , Attr.attribute "true-value" "true"
+                                                        , Attr.value "false"
+                                                        ]
+                                                        []
+                                                    , span
+                                                        [ Attr.class "check"
+                                                        ]
+                                                        []
+                                                    , span
+                                                        [ Attr.class "control-label"
+                                                        ]
+                                                        []
+                                                    ]
+                                                ]
+                                            , th
+                                                [ Attr.class "is-current-sort is-sortable"
+                                                ]
+                                                [ div
+                                                    [ Attr.class "th-wrap"
+                                                    ]
+                                                    [ text "Name", span
+                                                        [ Attr.class "icon is-small"
+                                                        ]
+                                                        [ i
+                                                            [ Attr.class "fas fa-arrow-up"
+                                                            ]
+                                                            []
+                                                        ]
+                                                    ]
+                                                ]
+                                            , th
+                                                [ Attr.class "is-sortable"
+                                                , Attr.style "width" "150px"
+                                                ]
+                                                [ div
+                                                    [ Attr.class "th-wrap is-numeric"
+                                                    ]
+                                                    [ text "Size", span
+                                                        [ Attr.class "icon is-small"
+                                                        , Attr.style "display" "none"
+                                                        ]
+                                                        [ i
+                                                            [ Attr.class "fas fa-arrow-up"
+                                                            ]
+                                                            []
+                                                        ]
+                                                    ]
+                                                ]
+                                            , th
+                                                [ Attr.class "is-sortable"
+                                                , Attr.style "width" "200px"
+                                                ]
+                                                [ div
+                                                    [ Attr.class "th-wrap is-numeric"
+                                                    ]
+                                                    [ text "Time", span
+                                                        [ Attr.class "icon is-small"
+                                                        , Attr.style "display" "none"
+                                                        ]
+                                                        [ i
+                                                            [ Attr.class "fas fa-arrow-up"
+                                                            ]
+                                                            []
+                                                        ]
+                                                    ]
+                                                ]
+                                            , th
+                                                [ Attr.class ""
+                                                , Attr.style "width" "51px"
+                                                ]
+                                                [ div
+                                                    [ Attr.class "th-wrap"
+                                                    ]
+                                                    [ span
+                                                        [ Attr.class "icon is-small"
+                                                        , Attr.style "display" "none"
+                                                        ]
+                                                        [ i
+                                                            [ Attr.class "fas fa-arrow-up"
+                                                            ]
+                                                            []
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    , tbody []
+                                        (case model.keyList of
+                                            Just keyList ->
+                                                if List.length keyList.keys /= 0 then
+                                                    (List.append
+                                                        (List.append viewBack (List.map (viewFolderItem model) model.folderList))
+                                                        (List.map (viewFileItem model) keyList.keys)
+                                                    )
+                                                else
+                                                    [viewAlertError "No files to show"]
+                                            Nothing -> []
+                                        )
+                                    ]
+                                ]
+                            ]
+                        , section
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.id "bottom-info"
+                            , Attr.class "is-flex is-justify-between"
+                            ]
+                            [ div
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                ]
+                                [ span
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    ]
+                                    [ text "Selected: 0 of 2" ]
+                                ]
                             ]
                         ]
                     ]
-                , div []
-                    [ div
-                        [ Attr.class "btn-group btn-group-toggle"
-                        , Attr.attribute "data-toggle" "buttons"
-                        ]
-                        [ button
-                            [ Attr.type_ "button"
-                            , Attr.class "btn btn-danger mr-2"
-                            , onClick ClickedLogout
-                            ]
-                            [ i
-                                [ Attr.class "icon ion-log-out"
-                                ]
-                                []
-                            , text "Logout" ]
-                        ]
-                    ]
                 ]
-            , hr
-                [ Attr.class "m-0"
-                ]
-                []
             ]
-
-        , div
-            [ Attr.class "file-manager-container file-manager-col-view"
-            ]
-            (case model.keyList of
-                Just keyList ->
-                    if List.length keyList.keys /= 0 then
-                        (List.append
-                            (List.append viewBack (List.map (viewFolderItem model) model.folderList))
-                            (List.map (viewFileItem model) keyList.keys)
-                        )
-                    else
-                        [viewAlertError "No files to show"]
-                Nothing -> []
-            )
         ]
 
 viewFilePath: String -> Html Msg
 viewFilePath dir =
     li
-        [ Attr.class "breadcrumb-item"
+    [ Attr.attribute "data-v-081c0a81" ""
+    ]
+    [ a
+        [ Attr.attribute "data-v-081c0a81" ""
+        , Attr.href "#"
+        , onClick (ClickedFilePath dir)
         ]
-        [ a
-            [ Attr.href "#"
-            ]
-            [ text dir ]
-        ]
+        [ text dir ]
+    ]
+    --li
+    --    [ Attr.class "breadcrumb-item"
+    --    ]
+    --    [ a
+    --        [ Attr.href "#"
+    --        , onClick (ClickedFilePath dir)
+    --        ]
+    --        [ text dir ]
+    --    ]
 
 
 viewFileItem: Model -> S3.Types.KeyInfo -> Html Msg
@@ -314,74 +676,238 @@ viewFile model key =
     let
         name = String.replace model.currentDir "" key.key
     in
-    div
-        [ Attr.class "file-item"
+    tr
+        [ Attr.draggable "false"
+        , Attr.class "file-row type-file"
         ]
-        [ div
-            [ Attr.class "file-item-select-bg bg-primary"
+        [ td
+            [ Attr.class "checkbox-cell"
             ]
-            []
-        , label
-            [ Attr.class "file-item-checkbox custom-control custom-checkbox"
-            ]
-            [ input
-                [ Attr.type_ "checkbox"
-                , Attr.class "custom-control-input"
+            [ label
+                [ Attr.class "b-checkbox checkbox"
                 ]
-                []
-            , span
-                [ Attr.class "custom-control-label"
-                ]
-                []
-            ]
-        , div
-            [ Attr.class "file-item-icon far fa-file text-secondary" ]
-            []
-        , a
-            [ Attr.href "#"
-            , Attr.class "file-item-name"
-            ]
-            [ text name ]
-        , div
-            [ Attr.class "file-item-changed"
-            ]
-            [ text key.lastModified ]
-        , div
-            [ Attr.class "file-item-actions btn-group"
-            ]
-            [ button
-                [ Attr.type_ "button"
-                , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                , Attr.attribute "data-toggle" "dropdown"
-                ]
-                [ i
-                    [ Attr.class "ion ion-ios-more"
+                [ input
+                    [ Attr.type_ "checkbox"
+                    , Attr.attribute "true-value" "true"
+                    , Attr.value "false"
+                    ]
+                    []
+                , span
+                    [ Attr.class "check"
+                    ]
+                    []
+                , span
+                    [ Attr.class "control-label"
                     ]
                     []
                 ]
-            , div
-                [ Attr.class "dropdown-menu dropdown-menu-right"
-                ]
+            ]
+        , td
+            [ Attr.attribute "data-v-081c0a81" ""
+            , Attr.attribute "data-label" "Name"
+            , Attr.class ""
+            ]
+            [ span []
                 [ a
-                    [ Attr.class "dropdown-item"
+                    [ Attr.attribute "data-v-081c0a81" ""
+                    , Attr.class "is-block name"
                     , Attr.href "#"
                     ]
-                    [ text "Rename" ]
-                , a
-                    [ Attr.class "dropdown-item"
-                    , Attr.href "#"
+                    [ text name ]
+                ]
+            ]
+        , td
+            [ Attr.attribute "data-v-081c0a81" ""
+            , Attr.attribute "data-label" "Size"
+            , Attr.class "has-text-right"
+            ]
+            [ span []
+                [ text "9 Bytes" ]
+            ]
+        , td
+            [ Attr.attribute "data-v-081c0a81" ""
+            , Attr.attribute "data-label" "Time"
+            , Attr.class "has-text-right"
+            ]
+            [ span []
+                [ text key.lastModified ]
+            ]
+        , td
+            [ Attr.attribute "data-v-081c0a81" ""
+            , Attr.class ""
+            , Attr.id "single-actions"
+            ]
+            [ span []
+                [ div
+                    [ Attr.attribute "data-v-081c0a81" ""
+                    , Attr.class "dropdown is-bottom-left is-mobile-modal"
                     ]
-                    [ text "Move" ]
-                , a
-                    [ Attr.class "dropdown-item"
-                    , Attr.href "#"
+                    [ div
+                        [ Attr.attribute "role" "button"
+                        , Attr.attribute "aria-haspopup" "true"
+                        , Attr.class "dropdown-trigger"
+                        ]
+                        [ button
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.class "button is-small"
+                            ]
+                            [ span
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.class "icon is-small"
+                                ]
+                                [ i
+                                    [ Attr.class "fas fa-ellipsis-h"
+                                    ]
+                                    []
+                                ]
+                            ]
+                        ]
+                    , div
+                        [ Attr.attribute "aria-hidden" "true"
+                        , Attr.class "background"
+                        , Attr.style "display" "none"
+                        ]
+                        []
+                    , div
+                        [ Attr.attribute "aria-hidden" "true"
+                        , Attr.class "dropdown-menu"
+                        , Attr.style "display" "none"
+                        ]
+                        [ div
+                            [ Attr.attribute "role" "list"
+                            , Attr.class "dropdown-content"
+                            ]
+                            [ a
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.attribute "role" "listitem"
+                                , Attr.tabindex 0
+                                , Attr.class "dropdown-item"
+                                ]
+                                [ span
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "icon is-small"
+                                    ]
+                                    [ i
+                                        [ Attr.class "fas fa-download"
+                                        ]
+                                        []
+                                    ]
+                                , text "Download" ]
+                            , a
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.attribute "role" "listitem"
+                                , Attr.tabindex 0
+                                , Attr.class "dropdown-item"
+                                ]
+                                [ span
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "icon is-small"
+                                    ]
+                                    [ i
+                                        [ Attr.class "fas fa-file-alt"
+                                        ]
+                                        []
+                                    ]
+                                , text "View" ]
+                            , a
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.attribute "role" "listitem"
+                                , Attr.tabindex 0
+                                , Attr.class "dropdown-item"
+                                ]
+                                [ span
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "icon is-small"
+                                    ]
+                                    [ i
+                                        [ Attr.class "fas fa-copy"
+                                        ]
+                                        []
+                                    ]
+                                , text "Copy" ]
+                            , a
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.attribute "role" "listitem"
+                                , Attr.tabindex 0
+                                , Attr.class "dropdown-item"
+                                ]
+                                [ span
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "icon is-small"
+                                    ]
+                                    [ i
+                                        [ Attr.class "fas fa-external-link-square-alt"
+                                        ]
+                                        []
+                                    ]
+                                , text "Move" ]
+                            , a
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.attribute "role" "listitem"
+                                , Attr.tabindex 0
+                                , Attr.class "dropdown-item"
+                                ]
+                                [ span
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "icon is-small"
+                                    ]
+                                    [ i
+                                        [ Attr.class "fas fa-file-signature"
+                                        ]
+                                        []
+                                    ]
+                                , text "Rename" ]
+                            , a
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.attribute "role" "listitem"
+                                , Attr.tabindex 0
+                                , Attr.class "dropdown-item"
+                                ]
+                                [ span
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "icon is-small"
+                                    ]
+                                    [ i
+                                        [ Attr.class "fas fa-file-archive"
+                                        ]
+                                        []
+                                    ]
+                                , text "Zip" ]
+                            , a
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.attribute "role" "listitem"
+                                , Attr.tabindex 0
+                                , Attr.class "dropdown-item"
+                                ]
+                                [ span
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "icon is-small"
+                                    ]
+                                    [ i
+                                        [ Attr.class "fas fa-trash-alt"
+                                        ]
+                                        []
+                                    ]
+                                , text "Delete" ]
+                            , a
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.attribute "role" "listitem"
+                                , Attr.tabindex 0
+                                , Attr.class "dropdown-item"
+                                ]
+                                [ span
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "icon is-small"
+                                    ]
+                                    [ i
+                                        [ Attr.class "fas fa-clipboard"
+                                        ]
+                                        []
+                                    ]
+                                , text "Copy link" ]
+                            ]
+                        ]
                     ]
-                    [ text "Copy" ]
-                , a
-                    [ Attr.class "dropdown-item"
-                    , Attr.href "#"
-                    ]
-                    [ text "Remove" ]
                 ]
             ]
         ]
@@ -405,93 +931,263 @@ viewFolder model key =
     let
         name = String.replace model.currentDir "" key.key
     in
-    div
-        [ Attr.class "file-item"
-        , onClick (ClickFolder key.key)
+    tr
+    [ Attr.draggable "false"
+    , Attr.class "file-row type-dir"
+    ]
+    [ td
+        [ Attr.class "checkbox-cell"
         ]
-        [ div
-            [ Attr.class "file-item-select-bg bg-primary"
-            ]
-            []
-        , label
-            [ Attr.class "file-item-checkbox custom-control custom-checkbox"
+        [ label
+            [ Attr.class "b-checkbox checkbox"
             ]
             [ input
                 [ Attr.type_ "checkbox"
-                , Attr.class "custom-control-input"
+                , Attr.attribute "true-value" "true"
+                , Attr.value "false"
                 ]
                 []
             , span
-                [ Attr.class "custom-control-label"
+                [ Attr.class "check"
+                ]
+                []
+            , span
+                [ Attr.class "control-label"
                 ]
                 []
             ]
-        , div
-            [ Attr.class "file-item-icon far fa-folder text-secondary" ]
-            []
-        , a
-            [ Attr.href "#"
-            , Attr.class "file-item-name"
-            ]
-            [ text (String.left ((String.length name) - 1) name) ]
-        , div
-            [ Attr.class "file-item-changed"
-            ]
-            [ text key.lastModified ]
-        , div
-            [ Attr.class "file-item-actions btn-group"
-            ]
-            [ button
-                [ Attr.type_ "button"
-                , Attr.class "btn btn-default btn-sm rounded-pill icon-btn borderless md-btn-flat hide-arrow dropdown-toggle"
-                , Attr.attribute "data-toggle" "dropdown"
+        ]
+    , td
+        [ Attr.attribute "data-v-081c0a81" ""
+        , Attr.attribute "data-label" "Name"
+        , Attr.class ""
+        ]
+        [ span []
+            [ a
+                [ Attr.attribute "data-v-081c0a81" ""
+                , Attr.class "is-block name"
+                , Attr.href "#"
+                , onClick (ClickFolder key.key)
                 ]
-                [ i
-                    [ Attr.class "ion ion-ios-more"
+                [ text (String.left ((String.length name) - 1) name) ]
+            ]
+        ]
+    , td
+        [ Attr.attribute "data-v-081c0a81" ""
+        , Attr.attribute "data-label" "Size"
+        , Attr.class "has-text-right"
+        ]
+        [ span []
+            [ text "Folder" ]
+        ]
+    , td
+        [ Attr.attribute "data-v-081c0a81" ""
+        , Attr.attribute "data-label" "Time"
+        , Attr.class "has-text-right"
+        ]
+        [ span []
+            [ text key.lastModified ]
+        ]
+    , td
+        [ Attr.attribute "data-v-081c0a81" ""
+        , Attr.class ""
+        , Attr.id "single-actions"
+        ]
+        [ span []
+            [ div
+                [ Attr.attribute "data-v-081c0a81" ""
+                , Attr.class "dropdown is-bottom-left is-mobile-modal"
+                ]
+                [ div
+                    [ Attr.attribute "role" "button"
+                    , Attr.attribute "aria-haspopup" "true"
+                    , Attr.class "dropdown-trigger"
+                    ]
+                    [ button
+                        [ Attr.attribute "data-v-081c0a81" ""
+                        , Attr.class "button is-small"
+                        ]
+                        [ span
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.class "icon is-small"
+                            ]
+                            [ i
+                                [ Attr.class "fas fa-ellipsis-h"
+                                ]
+                                []
+                            ]
+                        ]
+                    ]
+                , div
+                    [ Attr.attribute "aria-hidden" "true"
+                    , Attr.class "background"
+                    , Attr.style "display" "none"
                     ]
                     []
-                ]
-            , div
-                [ Attr.class "dropdown-menu dropdown-menu-right"
-                ]
-                [ a
-                    [ Attr.class "dropdown-item"
-                    , Attr.href "#"
+                , div
+                    [ Attr.attribute "aria-hidden" "true"
+                    , Attr.class "dropdown-menu"
+                    , Attr.style "display" "none"
                     ]
-                    [ text "Rename" ]
-                , a
-                    [ Attr.class "dropdown-item"
-                    , Attr.href "#"
+                    [ div
+                        [ Attr.attribute "role" "list"
+                        , Attr.class "dropdown-content"
+                        ]
+                        [ a
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.attribute "role" "listitem"
+                            , Attr.tabindex 0
+                            , Attr.class "dropdown-item"
+                            ]
+                            [ span
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.class "icon is-small"
+                                ]
+                                [ i
+                                    [ Attr.class "fas fa-copy"
+                                    ]
+                                    []
+                                ]
+                            , text "Copy" ]
+                        , a
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.attribute "role" "listitem"
+                            , Attr.tabindex 0
+                            , Attr.class "dropdown-item"
+                            ]
+                            [ span
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.class "icon is-small"
+                                ]
+                                [ i
+                                    [ Attr.class "fas fa-external-link-square-alt"
+                                    ]
+                                    []
+                                ]
+                            , text "Move" ]
+                        , a
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.attribute "role" "listitem"
+                            , Attr.tabindex 0
+                            , Attr.class "dropdown-item"
+                            ]
+                            [ span
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.class "icon is-small"
+                                ]
+                                [ i
+                                    [ Attr.class "fas fa-file-signature"
+                                    ]
+                                    []
+                                ]
+                            , text "Rename" ]
+                        , a
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.attribute "role" "listitem"
+                            , Attr.tabindex 0
+                            , Attr.class "dropdown-item"
+                            ]
+                            [ span
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.class "icon is-small"
+                                ]
+                                [ i
+                                    [ Attr.class "fas fa-file-archive"
+                                    ]
+                                    []
+                                ]
+                            , text "Zip" ]
+                        , a
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.attribute "role" "listitem"
+                            , Attr.tabindex 0
+                            , Attr.class "dropdown-item"
+                            ]
+                            [ span
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.class "icon is-small"
+                                ]
+                                [ i
+                                    [ Attr.class "fas fa-trash-alt"
+                                    ]
+                                    []
+                                ]
+                            , text "Delete" ]
+                        ]
                     ]
-                    [ text "Move" ]
-                , a
-                    [ Attr.class "dropdown-item"
-                    , Attr.href "#"
-                    ]
-                    [ text "Copy" ]
-                , a
-                    [ Attr.class "dropdown-item"
-                    , Attr.href "#"
-                    ]
-                    [ text "Remove" ]
                 ]
             ]
         ]
+    ]
 
 viewBack: List (Html Msg)
 viewBack =
-    [ div
-        [ Attr.class "file-item"
-        , onClick ClickedBack
+    [ tr
+        [ Attr.draggable "false"
+        , Attr.class "file-row type-back"
         ]
-        [ div
-            [ Attr.class "file-item-icon file-item-level-up fas fa-level-up-alt text-secondary"
+        [ td
+            [ Attr.class "checkbox-cell"
             ]
-            []
-        , a
-            [ Attr.href "javascript:void(0)"
-            , Attr.class "file-item-name"
+            [ label
+                [ Attr.class "b-checkbox checkbox is-disabled"
+                , Attr.disabled True
+                ]
+                [ input
+                    [ Attr.type_ "checkbox"
+                    , Attr.attribute "true-value" "true"
+                    , Attr.value "false"
+                    , Attr.disabled True
+                    ]
+                    []
+                , span
+                    [ Attr.class "check"
+                    ]
+                    []
+                , span
+                    [ Attr.class "control-label"
+                    ]
+                    []
+                ]
             ]
-            [ text ".." ]
+        , td
+            [ Attr.attribute "data-v-081c0a81" ""
+            , Attr.attribute "data-label" "Name"
+            , Attr.class ""
+            , onClick ClickedBack
+            ]
+            [ span []
+                [ a
+                    [ Attr.attribute "data-v-081c0a81" ""
+                    , Attr.class "is-block name"
+                    , Attr.href "#"
+                    ]
+                    [ text ".." ]
+                ]
+            ]
+        , td
+            [ Attr.attribute "data-v-081c0a81" ""
+            , Attr.attribute "data-label" "Size"
+            , Attr.class "has-text-right"
+            ]
+            [ span []
+                [ text "Folder" ]
+            ]
+        , td
+            [ Attr.attribute "data-v-081c0a81" ""
+            , Attr.attribute "data-label" "Time"
+            , Attr.class "has-text-right"
+            ]
+            [ span []
+                []
+            ]
+        , td
+            [ Attr.attribute "data-v-081c0a81" ""
+            , Attr.class ""
+            , Attr.id "single-actions"
+            ]
+            [ span []
+                []
+            ]
         ]
     ]
