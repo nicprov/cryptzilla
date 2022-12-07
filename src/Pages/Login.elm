@@ -127,7 +127,6 @@ update shared req msg model =
                                   ]
                 )
 
-
 -- View
 
 view : Shared.Model -> Model -> View Msg
@@ -140,151 +139,260 @@ view shared model =
 viewMain: Model -> Html Msg
 viewMain model =
     div
-        [ Attr.class "form-signin"
+        [ Attr.id "wrapper"
         ]
-        [ h1
-            [ Attr.class "h3 mb-3 font-weight-normal"
+        [ div
+            [ Attr.attribute "data-v" ""
             ]
-            [ text "Please sign in" ]
-        , (case model.status of
-            Error msg -> viewAlertError msg
-            None -> div [] []
-        )
-        , div []
-            [ div
-                [ Attr.class "form-group"
+            [
+            div
+                [ Attr.attribute "data-v" ""
+                , Attr.id "login"
+                , Attr.class "columns is-centered"
                 ]
-                [ label
-                    []
-                    [ text "Region" ]
-                , input
-                    [ Attr.class "form-control"
-                    , Attr.value ( case model.account.region of
-                                 Just region -> region
-                                 Nothing -> ""
-                             )
-                         , onInput ChangeRegion
+                [ div
+                    [ Attr.attribute "data-v" ""
+                    , Attr.class "column is-narrow"
                     ]
-                    []
-                , small
-                    [ Attr.class "form-text text-muted"
+                    [ div
+                        [ Attr.attribute "data-v" ""
+                        , Attr.attribute "data-bitwarden-watching" "1"
+                        ]
+                        [ div
+                            [ Attr.attribute "data-v" ""
+                            , Attr.class "box"
+                            ]
+                            [ div
+                                [ Attr.attribute "data-v" ""
+                                , Attr.class "has-text-centered"
+                                ]
+                                [ img
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.src "https://filegator.io/filegator_logo.svg"
+                                    , Attr.class "logo"
+                                    ]
+                                    []
+                                ]
+                            , br
+                                [ Attr.attribute "data-v" ""
+                                ]
+                                []
+                            , (case model.status of
+                                    Error msg -> viewAlertError msg
+                                    None -> div [] []
+                                )
+                            , div
+                                [ Attr.attribute "data-v" ""
+                                , Attr.class "field"
+                                ]
+                                [ label
+                                    [ Attr.class "label"
+                                    ]
+                                    [ text "Region" ]
+                                , div
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "control has-icons-right"
+                                    ]
+                                    [ input
+                                        [ Attr.type_ "text"
+                                        , Attr.class "input"
+                                        , Attr.value ( case model.account.region of
+                                                     Just region -> region
+                                                     Nothing -> ""
+                                                 )
+                                             , onInput ChangeRegion
+                                        ]
+                                        []
+                                    , small
+                                        [ Attr.class "form-text text-muted"
+                                        ]
+                                        [ text "S3 region used (ie. us-west-1 for AWS, or nyc3 for Digital Ocean)" ]
+                                    ]
+                                ]
+                            , div
+                                [ Attr.attribute "data-v" ""
+                                , Attr.class "field"
+                                ]
+                                [ label
+                                    [ Attr.class "label"
+                                    ]
+                                    [ text "Is Digital Ocean" ]
+                                , div
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "control has-icons-right"
+                                    ]
+                                    [ select
+                                        [ Attr.class "form-control"
+                                        , Attr.id "exampleFormControlSelect1"
+                                        , Attr.value (stringFromBool model.account.isDigitalOcean)
+                                        , onInput ChangeIsDigitalOcean
+                                        ]
+                                        [ option []
+                                            [ text "False" ]
+                                        , option []
+                                            [ text "True" ]
+                                        ]
+                                    , small
+                                        [ Attr.class "form-text text-muted"
+                                        ]
+                                        [ text "Indicate whether the bucket is hosted on AWS or Digital Ocean" ]
+                                    ]
+                                ]
+                            , div
+                                [ Attr.attribute "data-v" ""
+                                , Attr.class "field"
+                                ]
+                                [ label
+                                    [ Attr.class "label"
+                                    ]
+                                    [ text "Bucket Name" ]
+                                , div
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "control has-icons-right"
+                                    ]
+                                    [ input
+                                        [ Attr.type_ "text"
+                                        , Attr.class "input"
+                                        , Attr.value (case (head model.account.buckets) of
+                                            Just item -> item
+                                            Nothing -> ""
+                                            )
+                                        , onInput ChangeBucket
+                                        ]
+                                        []
+                                    ]
+                                ]
+                            , div
+                                [ Attr.attribute "data-v" ""
+                                , Attr.class "field"
+                                ]
+                                [ label
+                                    [ Attr.class "label"
+                                    ]
+                                    [ text "Access Key" ]
+                                , div
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "control has-icons-right"
+                                    ]
+                                    [ input
+                                        [ Attr.type_ "text"
+                                        , Attr.class "input"
+                                        , Attr.value model.account.accessKey
+                                        , onInput ChangeAccessKey
+                                        ]
+                                        []
+                                    ]
+                                ]
+                            , div
+                                [ Attr.attribute "data-v" ""
+                                , Attr.class "field"
+                                ]
+                                [ label
+                                    [ Attr.class "label"
+                                    ]
+                                    [ text "Secret Key" ]
+                                , div
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "control has-icons-right is-clearfix"
+                                    ]
+                                    [ input
+                                        [ Attr.type_ "password"
+                                        , Attr.class "input"
+                                        , Attr.value model.account.secretKey
+                                        , onInput ChangeSecretKey
+                                        ]
+                                        []
+                                    ,
+                                    span
+                                        [ Attr.class "icon is-right has-text-primary is-clickable"
+                                        ]
+                                        [ i
+                                            [ Attr.class "fas fa-eye fa-lg"
+                                            ]
+                                            []
+                                        ]
+                                    ]
+                                ]
+                            , div
+                                [ Attr.attribute "data-v" ""
+                                , Attr.class "field"
+                                ]
+                                [ label
+                                    [ Attr.class "label"
+                                    ]
+                                    [ text "Encryption Key" ]
+                                , div
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "control has-icons-right is-clearfix"
+                                    ]
+                                    [ input
+                                        [ Attr.type_ "password"
+                                        , Attr.class "input"
+                                        , Attr.value model.encryptionKey
+                                        , onInput ChangeEncryptionKey
+                                        ]
+                                        []
+                                    , small
+                                        [ Attr.class "form-text text-muted"
+                                        ]
+                                        [ text "Must be the encryption key found in the rclone config file because it is padded" ]
+                                    , span
+                                        [ Attr.class "icon is-right has-text-primary is-clickable"
+                                        ]
+                                        [ i
+                                            [ Attr.class "fas fa-eye fa-lg"
+                                            ]
+                                            []
+                                        ]
+                                    ]
+                                ]
+                            , div
+                                [ Attr.attribute "data-v" ""
+                                , Attr.class "field"
+                                ]
+                                [ label
+                                    [ Attr.class "label"
+                                    ]
+                                    [ text "Salt" ]
+                                , div
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "control has-icons-right is-clearfix"
+                                    ]
+                                    [ input
+                                        [ Attr.type_ "password"
+                                        , Attr.class "input"
+                                        , Attr.value model.salt
+                                        , onInput ChangedSalt
+                                        ]
+                                        []
+                                    , small
+                                        [ Attr.class "form-text text-muted"
+                                        ]
+                                        [ text "Optional (leave blank for empty), but must be the salt found in the rclone config file (named Password2) because it is padded" ]
+                                    , span
+                                        [ Attr.class "icon is-right has-text-primary is-clickable"
+                                        ]
+                                        [ i
+                                            [ Attr.class "fas fa-eye fa-lg"
+                                            ]
+                                            []
+                                        ]
+                                    ]
+                                ]
+                            , div
+                                [ Attr.attribute "data-v" ""
+                                , Attr.class "is-flex is-justify-end"
+                                ]
+                                [ button
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "button is-primary"
+                                    , onClick ClickedSignIn
+                                    ]
+                                    [ text "Log in" ]
+                                ]
+                            ]
+                        ]
                     ]
-                    [ text "S3 region used (ie. us-west-1 for AWS, or nyc3 for Digital Ocean)" ]
                 ]
-            , div
-                [ Attr.class "form-group"
-                ]
-                [ label
-                    [ ]
-                    [ text "Is Digital Ocean" ]
-                , select
-                    [ Attr.class "form-control"
-                    , Attr.id "exampleFormControlSelect1"
-                    , Attr.value (stringFromBool model.account.isDigitalOcean)
-                    , onInput ChangeIsDigitalOcean
-                    ]
-                    [ option []
-                        [ text "False" ]
-                    , option []
-                        [ text "True" ]
-                    ]
-                , small
-                    [ Attr.class "form-text text-muted"
-                    ]
-                    [ text "Indicate whether the bucket is hosted on AWS or Digital Ocean" ]
-                ]
-            , div
-                [ Attr.class "form-group"
-                ]
-                [ label
-                    [ ]
-                    [ text "Bucket Name" ]
-                , input
-                    [ Attr.class "form-control"
-                    , Attr.required True
-                    , Attr.autofocus True
-                    , Attr.value (case (head model.account.buckets) of
-                        Just item -> item
-                        Nothing -> ""
-                        )
-                    , onInput ChangeBucket
-                    ]
-                    []
-                ]
-            , div
-                [ Attr.class "form-group"
-                ]
-                [ label
-                    [ ]
-                    [ text "Access Key" ]
-                , input
-                    [ Attr.class "form-control"
-                    , Attr.required True
-                    , Attr.autofocus True
-                    , Attr.value model.account.accessKey
-                    , onInput ChangeAccessKey
-                    ]
-                    []
-                ]
-            , div
-                [ ]
-                [ label
-                    [ ]
-                    [ text "Secret Key" ]
-                , input
-                    [ Attr.type_ "password"
-                    , Attr.class "form-control"
-                    , Attr.required True
-                    , Attr.value model.account.secretKey
-                    , onInput ChangeSecretKey
-                    ]
-                    []
-                ]
-            , div
-                [ ]
-                [ label
-                    [ ]
-                    [ text "Encryption Key" ]
-                , input
-                    [ Attr.type_ "password"
-                    , Attr.class "form-control"
-                    , Attr.required True
-                    , Attr.value model.encryptionKey
-                    , onInput ChangeEncryptionKey
-                    ]
-                    []
-                , small
-                    [ Attr.class "form-text text-muted"
-                    ]
-                    [ text "Must be the encryption key found in the rclone config file because it is padded" ]
-                ]
-            , div
-                [ ]
-                [ label
-                    [ ]
-                    [ text "Salt" ]
-                , input
-                    [ Attr.type_ "password"
-                    , Attr.class "form-control"
-                    , Attr.required True
-                    , Attr.value model.salt
-                    , onInput ChangedSalt
-                    ]
-                    []
-                , small
-                    [ Attr.class "form-text text-muted"
-                    ]
-                    [ text "Optional (leave blank for empty), but must be the salt found in the rclone config file (named Password2) because it is padded" ]
-                ]
-            , br [] []
-            , button
-                [ Attr.type_ "submit"
-                , Attr.class "btn btn-primary"
-                , onClick ClickedSignIn
-                ]
-                [ text "Log in" ]
             ]
-
         ]
-
-
