@@ -8,10 +8,12 @@ port module Shared exposing
     , decryptKeyList
     , decryptedKeyList
     , DecryptionMessage
+    , KeyListDecrypted
+    , KeyInfoDecrypted
     )
 
 import Gen.Route
-import Json.Decode as Json
+import Json.Decode as Json exposing (Decoder)
 import Request exposing (Request)
 import S3.Types
 import Storage exposing (Storage)
@@ -31,15 +33,34 @@ type alias DecryptionMessage =
     , salt: String
     }
 
+type alias KeyInfoDecrypted =
+    { keyEncrypted : S3.Types.Key
+    , keyDecrypted: S3.Types.Key
+    , lastModified : String
+    , eTag : String
+    , size : Int
+    , storageClass : S3.Types.StorageClass
+    , owner : Maybe S3.Types.Owner
+    }
+
+type alias KeyListDecrypted =
+    { name : String
+    , prefix : Maybe String
+    , marker : Maybe String
+    , nextMarker : Maybe String
+    , maxKeys : Int
+    , isTruncated : Bool
+    , keys : List KeyInfoDecrypted
+    }
+
 type Msg
     = StorageUpdated Storage
-
 
 
 -- Ports
 
 port decryptKeyList: DecryptionMessage -> Cmd msg
-port decryptedKeyList: (S3.Types.KeyList -> msg) -> Sub msg
+port decryptedKeyList: (KeyListDecrypted -> msg) -> Sub msg
 
 init : Request -> Flags -> ( Model, Cmd Msg )
 init req flags =

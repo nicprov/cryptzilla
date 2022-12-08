@@ -1,17 +1,18 @@
 module Pages.Home_ exposing (Model, Msg, page)
 
 import Common.Alert exposing (viewAlertError)
+import Dict exposing (Dict)
 import Gen.Route
 import Html exposing (Html, a, button, div, hr, i, img, input, label, li, nav, ol, option, section, select, span, table, tbody, td, text, th, thead, tr, ul)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick)
 import List exposing (head)
-import List.Extra exposing (uniqueBy)
+import List.Extra as LE exposing (uniqueBy)
 import Page
 import Request exposing (Request)
 import S3
 import S3.Types exposing (Error, KeyList, QueryElement(..))
-import Shared exposing (decryptKeyList, DecryptionMessage)
+import Shared exposing (decryptKeyList, DecryptionMessage, KeyInfoDecrypted, KeyListDecrypted)
 import Storage
 import Task
 import View exposing (View)
@@ -28,16 +29,20 @@ page shared req =
 
 type alias Model =
     { display: String
-    , keyList: Maybe KeyList
+    , keyList: Maybe KeyListDecrypted
     , currentDir: String
-    , folderList: List(S3.Types.KeyInfo)
-    , selectedList: List(S3.Types.KeyInfo)
+    , folderList: List(KeyInfoDecrypted)
+    , selectedList: List(KeyInfoDecrypted)
     , expandedItem: String
+    , key: String
+    , text: String
+    , mimetype: String
+    , headers : List ( String, String )
     }
 
 init : Shared.Model -> (Model, Cmd Msg)
 init shared =
-    (Model "" Nothing "" [] [] ""
+    (Model "" Nothing "" [] [] "" "" "" "" []
     , case shared.storage.account of
         Just account ->
             listBucket account
@@ -50,18 +55,20 @@ init shared =
 type Msg
     = ReceiveListBucket (Result Error KeyList)
     | ReceiveDeleteObject (Result Error String)
+    | ReceiveGetObject (Result Error ( String, Dict String String ))
+    | ReceiveGetHeaders (Result Error (Dict String String))
     | ListBucket
     | ClickedFolder String
     | ClickedBack
     | ClickedLogout
-    | ClickedSelected S3.Types.KeyInfo
+    | ClickedSelected KeyInfoDecrypted
     | ClickedFilePath String
     | ClickedDropdown String
-    | ClickedDownload S3.Types.KeyInfo
-    | ClickedRename S3.Types.KeyInfo
-    | ClickedDelete S3.Types.KeyInfo
-    | ClickedCopyLink S3.Types.KeyInfo
-    | ReceivedDecryptedKeyList KeyList
+    | ClickedDownload String
+    | ClickedRename String
+    | ClickedDelete String
+    | ClickedCopyLink String
+    | ReceivedDecryptedKeyList KeyListDecrypted
 
 listBucket : S3.Types.Account -> Cmd Msg
 listBucket account =
@@ -76,7 +83,7 @@ listBucket account =
         |> S3.send account
         |> Task.attempt ReceiveListBucket
 
-deleteObject : S3.Types.Account -> S3.Types.KeyInfo -> Cmd Msg
+deleteObject : S3.Types.Account -> String -> Cmd Msg
 deleteObject account key =
     let
         bucket = (case (head account.buckets) of
@@ -84,14 +91,38 @@ deleteObject account key =
             Nothing -> ""
             )
     in
-    S3.deleteObject bucket key.key
+    S3.deleteObject bucket key
         |> S3.send account
         |> Task.attempt ReceiveDeleteObject
 
-removeFiles: S3.Types.KeyInfo ->  S3.Types.KeyInfo
+getObject : S3.Types.Account -> String -> Cmd Msg
+getObject account key  =
+    let
+        bucket = (case (head account.buckets) of
+            Just b -> b
+            Nothing -> ""
+            )
+    in
+    S3.getObjectWithHeaders bucket key
+        |> S3.send account
+        |> Task.attempt ReceiveGetObject
+
+getHeaders : S3.Types.Account -> String -> Cmd Msg
+getHeaders account key =
+    let
+        bucket = (case (head account.buckets) of
+            Just b -> b
+            Nothing -> ""
+            )
+    in
+    S3.getHeaders bucket key
+        |> S3.send account
+        |> Task.attempt ReceiveGetHeaders
+
+removeFiles: KeyInfoDecrypted ->  KeyInfoDecrypted
 removeFiles key =
     let
-        file = String.split "/" key.key
+        file = String.split "/" key.keyDecrypted
     in
     case List.head (List.reverse file) of
         Just element ->
@@ -102,21 +133,43 @@ removeFiles key =
                     tempName = List.drop 1 (List.reverse file) -- drop file name
                     fixedName = List.map (\m -> m ++ "/") tempName
                 in
-                { key | key = String.concat fixedName}
+                { key | keyDecrypted = String.concat fixedName}
         Nothing ->
             key
 
 
-isFolder: S3.Types.KeyInfo -> Bool
+isFolder: KeyInfoDecrypted -> Bool
 isFolder key =
     let
-        file = String.split "/" key.key
+        file = String.split "/" key.keyDecrypted
     in
     if (List.length file) >= 2 then
         True
     else
         False
 
+stringEqual : String -> String -> Bool
+stringEqual s1 s2 =
+    String.toLower s1 == String.toLower s2
+
+headersMimetype : List ( String, String ) -> String
+headersMimetype headers =
+    case
+        LE.find
+            (\header ->
+                stringEqual "content-type" <| Tuple.first header
+            )
+            headers
+    of
+        Nothing ->
+            "plain"
+
+        Just ( _, mimetype ) ->
+            if String.startsWith "text/html" <| String.toLower mimetype then
+                "html"
+
+            else
+                "plain"
 
 update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
 update shared req msg model =
@@ -168,7 +221,7 @@ update shared req msg model =
             ( { model
                 | display = "Bucket listing received."
                 , keyList = Just keyList
-                , folderList = uniqueBy (\k -> k.key) folders
+                , folderList = uniqueBy (\k -> k.keyDecrypted) folders
               }
             , Cmd.none
             )
@@ -185,23 +238,38 @@ update shared req msg model =
             else
                 ( { model | expandedItem = item }, Cmd.none )
 
-        ClickedDownload keyInfo ->
-            ( model, Cmd.none )
+        ClickedDownload key ->
+            case shared.storage.account of
+                Just acc ->
+                    ( { model | expandedItem = "", key = key }
+                    , getObject acc key
+                    )
+                Nothing -> (model, Cmd.none)
 
-        ClickedRename keyInfo ->
-            ( model, Cmd.none )
+        ClickedRename key ->
+            case shared.storage.account of
+                Just acc ->
+                    ( { model | expandedItem = "" }
+                    , Cmd.none
+                    )
+                Nothing -> (model, Cmd.none)
 
         ClickedDelete key ->
             case shared.storage.account of
                 Just acc ->
-                    ( model
+                    ( { model | expandedItem = "" }
                     , deleteObject acc key
                     )
                 Nothing -> (model, Cmd.none)
 
 
-        ClickedCopyLink keyInfo ->
-            ( model, Cmd.none )
+        ClickedCopyLink key ->
+            case shared.storage.account of
+                Just acc ->
+                    ( { model | expandedItem = "" }
+                    , Cmd.none
+                    )
+                Nothing -> (model, Cmd.none)
 
         ReceiveDeleteObject result ->
             case result of
@@ -217,6 +285,38 @@ update shared req msg model =
                             , listBucket acc -- Should simply update keyList instead, but used for debugging because delete not working
                             )
                         Nothing -> (model, Cmd.none)
+
+        ReceiveGetObject result ->
+            case result of
+                Err err ->
+                    ( { model | display = Debug.toString err }
+                    , Cmd.none
+                    )
+
+                Ok ( res, headers ) ->
+                    case shared.storage.account of
+                        Just acc ->
+                            ( { model
+                                | display = "Got " ++ model.key
+                                , text = res
+                                , mimetype = headersMimetype <| Dict.toList headers
+                              }
+                            , getHeaders acc model.key
+                            )
+                        Nothing -> (model, Cmd.none)
+
+
+        ReceiveGetHeaders result ->
+            case result of
+                Err err ->
+                    ( { model | display = Debug.toString err }
+                    , Cmd.none
+                    )
+
+                Ok headers ->
+                    ( { model | headers = Dict.toList headers }
+                    , Cmd.none
+                    )
 
 -- Listen for shared model changes
 
@@ -726,11 +826,11 @@ viewFilePath dir =
     ]
 
 
-viewFileItem: Model -> S3.Types.KeyInfo -> Html Msg
+viewFileItem: Model -> KeyInfoDecrypted -> Html Msg
 viewFileItem model key =
-    if String.contains model.currentDir key.key then
+    if String.contains model.currentDir key.keyDecrypted then
         let
-            name = String.replace model.currentDir "" key.key
+            name = String.replace model.currentDir "" key.keyDecrypted
             file = String.split "/" name
         in
         if name /= "" && (List.length file) == 1 then
@@ -740,10 +840,10 @@ viewFileItem model key =
     else
         div [] []
 
-viewFile: Model -> S3.Types.KeyInfo -> Html Msg
+viewFile: Model -> KeyInfoDecrypted -> Html Msg
 viewFile model key =
     let
-        name = String.replace model.currentDir "" key.key
+        name = String.replace model.currentDir "" key.keyDecrypted
     in
     tr
         [ Attr.draggable "false"
@@ -812,11 +912,11 @@ viewFile model key =
             ]
         ]
 
-viewDropdown: Model -> S3.Types.KeyInfo -> List (Html Msg)
+viewDropdown: Model -> KeyInfoDecrypted -> List (Html Msg)
 viewDropdown model key =
     [ div
         [ Attr.attribute "data-v-081c0a81" ""
-        , if key.key == model.expandedItem then
+        , if key.keyDecrypted == model.expandedItem then
             Attr.class "dropdown is-bottom-left is-active is-mobile-modal"
          else
             Attr.class "dropdown is-bottom-left is-mobile-modal"
@@ -829,7 +929,7 @@ viewDropdown model key =
             [ button
                 [ Attr.attribute "data-v-081c0a81" ""
                 , Attr.class "button is-small"
-                , onClick (ClickedDropdown key.key)
+                , onClick (ClickedDropdown key.keyDecrypted)
                 ]
                 [ span
                     [ Attr.attribute "data-v-081c0a81" ""
@@ -851,7 +951,7 @@ viewDropdown model key =
         , div
             [ Attr.attribute "aria-hidden" "true"
             , Attr.class "dropdown-menu"
-            , if key.key == model.expandedItem then
+            , if key.keyDecrypted == model.expandedItem then
                 Attr.style "" ""
               else
                Attr.style "display" "none"
@@ -866,6 +966,7 @@ viewDropdown model key =
                     , Attr.tabindex 0
                     , Attr.class "dropdown-item"
                     , Attr.href "#"
+                    , onClick (ClickedDownload key.keyEncrypted)
                     ]
                     [ span
                         [ Attr.attribute "data-v-081c0a81" ""
@@ -900,7 +1001,7 @@ viewDropdown model key =
                     , Attr.tabindex 0
                     , Attr.class "dropdown-item"
                     , Attr.href "#"
-                    , onClick (ClickedDelete key)
+                    , onClick (ClickedDelete key.keyEncrypted)
                     ]
                     [ span
                         [ Attr.attribute "data-v-081c0a81" ""
@@ -934,24 +1035,24 @@ viewDropdown model key =
         ]
     ]
 
-viewFolderItem: Model -> S3.Types.KeyInfo -> Html Msg
+viewFolderItem: Model -> KeyInfoDecrypted -> Html Msg
 viewFolderItem model key =
-    if String.contains model.currentDir key.key then
+    if String.contains model.currentDir key.keyDecrypted then
         let
-            tempFolder = String.replace model.currentDir "" key.key
+            tempFolder = String.replace model.currentDir "" key.keyDecrypted
         in
 
-        if model.currentDir /= key.key && (List.length (String.split "/" tempFolder)) == 2 then
+        if model.currentDir /= key.keyDecrypted && (List.length (String.split "/" tempFolder)) == 2 then
             viewFolder model key
         else
             div [] []
     else
         div [] []
 
-viewFolder: Model -> S3.Types.KeyInfo -> Html Msg
+viewFolder: Model -> KeyInfoDecrypted -> Html Msg
 viewFolder model key =
     let
-        name = String.replace model.currentDir "" key.key
+        name = String.replace model.currentDir "" key.keyDecrypted
     in
     tr
     [ Attr.draggable "false"
@@ -989,7 +1090,7 @@ viewFolder model key =
                 [ Attr.attribute "data-v-081c0a81" ""
                 , Attr.class "is-block name"
                 , Attr.href "#"
-                , onClick (ClickedFolder key.key)
+                , onClick (ClickedFolder key.keyDecrypted)
                 ]
                 [ text (String.left ((String.length name) - 1) name) ]
             ]
