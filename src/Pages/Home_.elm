@@ -31,11 +31,12 @@ type alias Model =
     , keyList: Maybe KeyList
     , currentDir: String
     , folderList: List(S3.Types.KeyInfo)
+    , selectedList: List(S3.Types.KeyInfo)
     }
 
 init : Shared.Model -> (Model, Cmd Msg)
 init shared =
-    (Model "" Nothing "" []
+    (Model "" Nothing "" [] []
     , case shared.storage.account of
         Just account ->
             listBucket account
@@ -51,6 +52,7 @@ type Msg
     | ClickFolder String
     | ClickedBack
     | ClickedLogout
+    | ClickedSelected S3.Types.KeyInfo
     | ClickedFilePath String
     | ReceivedDecryptedKeyList KeyList
 
@@ -151,6 +153,12 @@ update shared req msg model =
               }
             , Cmd.none
             )
+
+        ClickedSelected keyInfo ->
+            if List.member keyInfo model.selectedList then
+                ( { model | selectedList = (List.filter (\x -> x /= keyInfo) model.selectedList) }, Cmd.none ) -- Remove item from list
+            else
+                ( { model | selectedList = (List.append [keyInfo] model.selectedList) }, Cmd.none ) -- Add item to list
 
 
 -- Listen for shared model changes
@@ -617,7 +625,7 @@ viewMain model account =
                                             Just keyList ->
                                                 if List.length keyList.keys /= 0 then
                                                     (List.append
-                                                        (List.append viewBack (List.map (viewFolderItem model) model.folderList))
+                                                        (List.append (viewBack model) (List.map (viewFolderItem model) model.folderList))
                                                         (List.map (viewFileItem model) keyList.keys)
                                                     )
                                                 else
@@ -638,7 +646,7 @@ viewMain model account =
                                 [ span
                                     [ Attr.attribute "data-v-081c0a81" ""
                                     ]
-                                    [ text "Selected: 0 of 2" ]
+                                    [ text ("Selected: " ++ (String.fromInt (List.length model.selectedList))) ]
                                 ]
                             ]
                         ]
@@ -703,6 +711,7 @@ viewFile model key =
                     [ Attr.type_ "checkbox"
                     , Attr.attribute "true-value" "true"
                     , Attr.value "false"
+                    , onClick (ClickedSelected key)
                     ]
                     []
                 , span
@@ -1133,74 +1142,77 @@ viewFolder model key =
         ]
     ]
 
-viewBack: List (Html Msg)
-viewBack =
-    [ tr
-        [ Attr.draggable "false"
-        , Attr.class "file-row type-back"
-        ]
-        [ td
-            [ Attr.class "checkbox-cell"
+viewBack: Model -> List (Html Msg)
+viewBack model =
+    if model.currentDir == "" then
+        []
+    else
+        [ tr
+            [ Attr.draggable "false"
+            , Attr.class "file-row type-back"
             ]
-            [ label
-                [ Attr.class "b-checkbox checkbox is-disabled"
-                , Attr.disabled True
+            [ td
+                [ Attr.class "checkbox-cell"
                 ]
-                [ input
-                    [ Attr.type_ "checkbox"
-                    , Attr.attribute "true-value" "true"
-                    , Attr.value "false"
+                [ label
+                    [ Attr.class "b-checkbox checkbox is-disabled"
                     , Attr.disabled True
                     ]
-                    []
-                , span
-                    [ Attr.class "check"
+                    [ input
+                        [ Attr.type_ "checkbox"
+                        , Attr.attribute "true-value" "true"
+                        , Attr.value "false"
+                        , Attr.disabled True
+                        ]
+                        []
+                    , span
+                        [ Attr.class "check"
+                        ]
+                        []
+                    , span
+                        [ Attr.class "control-label"
+                        ]
+                        []
                     ]
-                    []
-                , span
-                    [ Attr.class "control-label"
+                ]
+            , td
+                [ Attr.attribute "data-v-081c0a81" ""
+                , Attr.attribute "data-label" "Name"
+                , Attr.class ""
+                , onClick ClickedBack
+                ]
+                [ span []
+                    [ a
+                        [ Attr.attribute "data-v-081c0a81" ""
+                        , Attr.class "is-block name"
+                        , Attr.href "#"
+                        ]
+                        [ text ".." ]
                     ]
+                ]
+            , td
+                [ Attr.attribute "data-v-081c0a81" ""
+                , Attr.attribute "data-label" "Size"
+                , Attr.class "has-text-right"
+                ]
+                [ span []
+                    [ text "Folder" ]
+                ]
+            , td
+                [ Attr.attribute "data-v-081c0a81" ""
+                , Attr.attribute "data-label" "Time"
+                , Attr.class "has-text-right"
+                ]
+                [ span []
                     []
                 ]
-            ]
-        , td
-            [ Attr.attribute "data-v-081c0a81" ""
-            , Attr.attribute "data-label" "Name"
-            , Attr.class ""
-            , onClick ClickedBack
-            ]
-            [ span []
-                [ a
-                    [ Attr.attribute "data-v-081c0a81" ""
-                    , Attr.class "is-block name"
-                    , Attr.href "#"
-                    ]
-                    [ text ".." ]
+            , td
+                [ Attr.attribute "data-v-081c0a81" ""
+                , Attr.class ""
+                , Attr.id "single-actions"
                 ]
-            ]
-        , td
-            [ Attr.attribute "data-v-081c0a81" ""
-            , Attr.attribute "data-label" "Size"
-            , Attr.class "has-text-right"
-            ]
-            [ span []
-                [ text "Folder" ]
-            ]
-        , td
-            [ Attr.attribute "data-v-081c0a81" ""
-            , Attr.attribute "data-label" "Time"
-            , Attr.class "has-text-right"
-            ]
-            [ span []
-                []
-            ]
-        , td
-            [ Attr.attribute "data-v-081c0a81" ""
-            , Attr.class ""
-            , Attr.id "single-actions"
-            ]
-            [ span []
-                []
+                [ span []
+                    []
+                ]
             ]
         ]
-    ]
