@@ -32,11 +32,12 @@ type alias Model =
     , currentDir: String
     , folderList: List(S3.Types.KeyInfo)
     , selectedList: List(S3.Types.KeyInfo)
+    , expandedItem: String
     }
 
 init : Shared.Model -> (Model, Cmd Msg)
 init shared =
-    (Model "" Nothing "" [] []
+    (Model "" Nothing "" [] [] ""
     , case shared.storage.account of
         Just account ->
             listBucket account
@@ -54,6 +55,11 @@ type Msg
     | ClickedLogout
     | ClickedSelected S3.Types.KeyInfo
     | ClickedFilePath String
+    | ClickedDropdown String
+    | ClickedDownload S3.Types.KeyInfo
+    | ClickedRename S3.Types.KeyInfo
+    | ClickedDelete S3.Types.KeyInfo
+    | ClickedCopyLink S3.Types.KeyInfo
     | ReceivedDecryptedKeyList KeyList
 
 listBucket : S3.Types.Account -> Cmd Msg
@@ -159,6 +165,24 @@ update shared req msg model =
                 ( { model | selectedList = (List.filter (\x -> x /= keyInfo) model.selectedList) }, Cmd.none ) -- Remove item from list
             else
                 ( { model | selectedList = (List.append [keyInfo] model.selectedList) }, Cmd.none ) -- Add item to list
+
+        ClickedDropdown item ->
+            if model.expandedItem == item then
+                ( { model | expandedItem = "" }, Cmd.none)
+            else
+                ( { model | expandedItem = item }, Cmd.none )
+
+        ClickedDownload keyInfo ->
+            ( model, Cmd.none )
+
+        ClickedRename keyInfo ->
+            ( model, Cmd.none )
+
+        ClickedDelete keyInfo ->
+            ( model, Cmd.none )
+
+        ClickedCopyLink keyInfo ->
+            ( model, Cmd.none )
 
 
 -- Listen for shared model changes
@@ -667,15 +691,6 @@ viewFilePath dir =
         ]
         [ text dir ]
     ]
-    --li
-    --    [ Attr.class "breadcrumb-item"
-    --    ]
-    --    [ a
-    --        [ Attr.href "#"
-    --        , onClick (ClickedFilePath dir)
-    --        ]
-    --        [ text dir ]
-    --    ]
 
 
 viewFileItem: Model -> S3.Types.KeyInfo -> Html Msg
@@ -760,179 +775,126 @@ viewFile model key =
             , Attr.id "single-actions"
             ]
             [ span []
-                [ div
+                (viewDropdown model key)
+            ]
+        ]
+
+viewDropdown: Model -> S3.Types.KeyInfo -> List (Html Msg)
+viewDropdown model key =
+    [ div
+        [ Attr.attribute "data-v-081c0a81" ""
+        , if key.key == model.expandedItem then
+            Attr.class "dropdown is-bottom-left is-active is-mobile-modal"
+         else
+            Attr.class "dropdown is-bottom-left is-mobile-modal"
+        ]
+        [ div
+            [ Attr.attribute "role" "button"
+            , Attr.attribute "aria-haspopup" "true"
+            , Attr.class "dropdown-trigger"
+            ]
+            [ button
+                [ Attr.attribute "data-v-081c0a81" ""
+                , Attr.class "button is-small"
+                , onClick (ClickedDropdown key.key)
+                ]
+                [ span
                     [ Attr.attribute "data-v-081c0a81" ""
-                    , Attr.class "dropdown is-bottom-left is-mobile-modal"
+                    , Attr.class "icon is-small"
                     ]
-                    [ div
-                        [ Attr.attribute "role" "button"
-                        , Attr.attribute "aria-haspopup" "true"
-                        , Attr.class "dropdown-trigger"
-                        ]
-                        [ button
-                            [ Attr.attribute "data-v-081c0a81" ""
-                            , Attr.class "button is-small"
-                            ]
-                            [ span
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.class "icon is-small"
-                                ]
-                                [ i
-                                    [ Attr.class "fas fa-ellipsis-h"
-                                    ]
-                                    []
-                                ]
-                            ]
-                        ]
-                    , div
-                        [ Attr.attribute "aria-hidden" "true"
-                        , Attr.class "background"
-                        , Attr.style "display" "none"
+                    [ i
+                        [ Attr.class "fas fa-ellipsis-h"
                         ]
                         []
-                    , div
-                        [ Attr.attribute "aria-hidden" "true"
-                        , Attr.class "dropdown-menu"
-                        , Attr.style "display" "none"
-                        ]
-                        [ div
-                            [ Attr.attribute "role" "list"
-                            , Attr.class "dropdown-content"
-                            ]
-                            [ a
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.attribute "role" "listitem"
-                                , Attr.tabindex 0
-                                , Attr.class "dropdown-item"
-                                ]
-                                [ span
-                                    [ Attr.attribute "data-v-081c0a81" ""
-                                    , Attr.class "icon is-small"
-                                    ]
-                                    [ i
-                                        [ Attr.class "fas fa-download"
-                                        ]
-                                        []
-                                    ]
-                                , text "Download" ]
-                            , a
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.attribute "role" "listitem"
-                                , Attr.tabindex 0
-                                , Attr.class "dropdown-item"
-                                ]
-                                [ span
-                                    [ Attr.attribute "data-v-081c0a81" ""
-                                    , Attr.class "icon is-small"
-                                    ]
-                                    [ i
-                                        [ Attr.class "fas fa-file-alt"
-                                        ]
-                                        []
-                                    ]
-                                , text "View" ]
-                            , a
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.attribute "role" "listitem"
-                                , Attr.tabindex 0
-                                , Attr.class "dropdown-item"
-                                ]
-                                [ span
-                                    [ Attr.attribute "data-v-081c0a81" ""
-                                    , Attr.class "icon is-small"
-                                    ]
-                                    [ i
-                                        [ Attr.class "fas fa-copy"
-                                        ]
-                                        []
-                                    ]
-                                , text "Copy" ]
-                            , a
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.attribute "role" "listitem"
-                                , Attr.tabindex 0
-                                , Attr.class "dropdown-item"
-                                ]
-                                [ span
-                                    [ Attr.attribute "data-v-081c0a81" ""
-                                    , Attr.class "icon is-small"
-                                    ]
-                                    [ i
-                                        [ Attr.class "fas fa-external-link-square-alt"
-                                        ]
-                                        []
-                                    ]
-                                , text "Move" ]
-                            , a
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.attribute "role" "listitem"
-                                , Attr.tabindex 0
-                                , Attr.class "dropdown-item"
-                                ]
-                                [ span
-                                    [ Attr.attribute "data-v-081c0a81" ""
-                                    , Attr.class "icon is-small"
-                                    ]
-                                    [ i
-                                        [ Attr.class "fas fa-file-signature"
-                                        ]
-                                        []
-                                    ]
-                                , text "Rename" ]
-                            , a
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.attribute "role" "listitem"
-                                , Attr.tabindex 0
-                                , Attr.class "dropdown-item"
-                                ]
-                                [ span
-                                    [ Attr.attribute "data-v-081c0a81" ""
-                                    , Attr.class "icon is-small"
-                                    ]
-                                    [ i
-                                        [ Attr.class "fas fa-file-archive"
-                                        ]
-                                        []
-                                    ]
-                                , text "Zip" ]
-                            , a
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.attribute "role" "listitem"
-                                , Attr.tabindex 0
-                                , Attr.class "dropdown-item"
-                                ]
-                                [ span
-                                    [ Attr.attribute "data-v-081c0a81" ""
-                                    , Attr.class "icon is-small"
-                                    ]
-                                    [ i
-                                        [ Attr.class "fas fa-trash-alt"
-                                        ]
-                                        []
-                                    ]
-                                , text "Delete" ]
-                            , a
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.attribute "role" "listitem"
-                                , Attr.tabindex 0
-                                , Attr.class "dropdown-item"
-                                ]
-                                [ span
-                                    [ Attr.attribute "data-v-081c0a81" ""
-                                    , Attr.class "icon is-small"
-                                    ]
-                                    [ i
-                                        [ Attr.class "fas fa-clipboard"
-                                        ]
-                                        []
-                                    ]
-                                , text "Copy link" ]
-                            ]
-                        ]
                     ]
                 ]
             ]
+        , div
+            [ Attr.attribute "aria-hidden" "true"
+            , Attr.class "background"
+            , Attr.style "display" "none"
+            ]
+            []
+        , div
+            [ Attr.attribute "aria-hidden" "true"
+            , Attr.class "dropdown-menu"
+            , if key.key == model.expandedItem then
+                Attr.style "" ""
+              else
+               Attr.style "display" "none"
+            ]
+            [ div
+                [ Attr.attribute "role" "list"
+                , Attr.class "dropdown-content"
+                ]
+                [ a
+                    [ Attr.attribute "data-v-081c0a81" ""
+                    , Attr.attribute "role" "listitem"
+                    , Attr.tabindex 0
+                    , Attr.class "dropdown-item"
+                    ]
+                    [ span
+                        [ Attr.attribute "data-v-081c0a81" ""
+                        , Attr.class "icon is-small"
+                        ]
+                        [ i
+                            [ Attr.class "fas fa-download"
+                            ]
+                            []
+                        ]
+                    , text " Download" ]
+                , a
+                    [ Attr.attribute "data-v-081c0a81" ""
+                    , Attr.attribute "role" "listitem"
+                    , Attr.tabindex 0
+                    , Attr.class "dropdown-item"
+                    ]
+                    [ span
+                        [ Attr.attribute "data-v-081c0a81" ""
+                        , Attr.class "icon is-small"
+                        ]
+                        [ i
+                            [ Attr.class "fas fa-file-signature"
+                            ]
+                            []
+                        ]
+                    , text " Rename" ]
+                , a
+                    [ Attr.attribute "data-v-081c0a81" ""
+                    , Attr.attribute "role" "listitem"
+                    , Attr.tabindex 0
+                    , Attr.class "dropdown-item"
+                    ]
+                    [ span
+                        [ Attr.attribute "data-v-081c0a81" ""
+                        , Attr.class "icon is-small"
+                        ]
+                        [ i
+                            [ Attr.class "fas fa-trash-alt"
+                            ]
+                            []
+                        ]
+                    , text " Delete" ]
+                , a
+                    [ Attr.attribute "data-v-081c0a81" ""
+                    , Attr.attribute "role" "listitem"
+                    , Attr.tabindex 0
+                    , Attr.class "dropdown-item"
+                    ]
+                    [ span
+                        [ Attr.attribute "data-v-081c0a81" ""
+                        , Attr.class "icon is-small"
+                        ]
+                        [ i
+                            [ Attr.class "fas fa-clipboard"
+                            ]
+                            []
+                        ]
+                    , text " Copy link" ]
+                ]
+            ]
         ]
+    ]
 
 viewFolderItem: Model -> S3.Types.KeyInfo -> Html Msg
 viewFolderItem model key =
@@ -1016,129 +978,7 @@ viewFolder model key =
         , Attr.id "single-actions"
         ]
         [ span []
-            [ div
-                [ Attr.attribute "data-v-081c0a81" ""
-                , Attr.class "dropdown is-bottom-left is-mobile-modal"
-                ]
-                [ div
-                    [ Attr.attribute "role" "button"
-                    , Attr.attribute "aria-haspopup" "true"
-                    , Attr.class "dropdown-trigger"
-                    ]
-                    [ button
-                        [ Attr.attribute "data-v-081c0a81" ""
-                        , Attr.class "button is-small"
-                        ]
-                        [ span
-                            [ Attr.attribute "data-v-081c0a81" ""
-                            , Attr.class "icon is-small"
-                            ]
-                            [ i
-                                [ Attr.class "fas fa-ellipsis-h"
-                                ]
-                                []
-                            ]
-                        ]
-                    ]
-                , div
-                    [ Attr.attribute "aria-hidden" "true"
-                    , Attr.class "background"
-                    , Attr.style "display" "none"
-                    ]
-                    []
-                , div
-                    [ Attr.attribute "aria-hidden" "true"
-                    , Attr.class "dropdown-menu"
-                    , Attr.style "display" "none"
-                    ]
-                    [ div
-                        [ Attr.attribute "role" "list"
-                        , Attr.class "dropdown-content"
-                        ]
-                        [ a
-                            [ Attr.attribute "data-v-081c0a81" ""
-                            , Attr.attribute "role" "listitem"
-                            , Attr.tabindex 0
-                            , Attr.class "dropdown-item"
-                            ]
-                            [ span
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.class "icon is-small"
-                                ]
-                                [ i
-                                    [ Attr.class "fas fa-copy"
-                                    ]
-                                    []
-                                ]
-                            , text "Copy" ]
-                        , a
-                            [ Attr.attribute "data-v-081c0a81" ""
-                            , Attr.attribute "role" "listitem"
-                            , Attr.tabindex 0
-                            , Attr.class "dropdown-item"
-                            ]
-                            [ span
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.class "icon is-small"
-                                ]
-                                [ i
-                                    [ Attr.class "fas fa-external-link-square-alt"
-                                    ]
-                                    []
-                                ]
-                            , text "Move" ]
-                        , a
-                            [ Attr.attribute "data-v-081c0a81" ""
-                            , Attr.attribute "role" "listitem"
-                            , Attr.tabindex 0
-                            , Attr.class "dropdown-item"
-                            ]
-                            [ span
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.class "icon is-small"
-                                ]
-                                [ i
-                                    [ Attr.class "fas fa-file-signature"
-                                    ]
-                                    []
-                                ]
-                            , text "Rename" ]
-                        , a
-                            [ Attr.attribute "data-v-081c0a81" ""
-                            , Attr.attribute "role" "listitem"
-                            , Attr.tabindex 0
-                            , Attr.class "dropdown-item"
-                            ]
-                            [ span
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.class "icon is-small"
-                                ]
-                                [ i
-                                    [ Attr.class "fas fa-file-archive"
-                                    ]
-                                    []
-                                ]
-                            , text "Zip" ]
-                        , a
-                            [ Attr.attribute "data-v-081c0a81" ""
-                            , Attr.attribute "role" "listitem"
-                            , Attr.tabindex 0
-                            , Attr.class "dropdown-item"
-                            ]
-                            [ span
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.class "icon is-small"
-                                ]
-                                [ i
-                                    [ Attr.class "fas fa-trash-alt"
-                                    ]
-                                    []
-                                ]
-                            , text "Delete" ]
-                        ]
-                    ]
-                ]
-            ]
+            (viewDropdown model key)
         ]
     ]
 
