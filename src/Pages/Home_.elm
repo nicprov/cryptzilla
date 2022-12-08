@@ -49,8 +49,9 @@ init shared =
 
 type Msg
     = ReceiveListBucket (Result Error KeyList)
+    | ReceiveDeleteObject (Result Error String)
     | ListBucket
-    | ClickFolder String
+    | ClickedFolder String
     | ClickedBack
     | ClickedLogout
     | ClickedSelected S3.Types.KeyInfo
@@ -74,6 +75,18 @@ listBucket account =
         |> S3.addQuery [ MaxKeys 100 ]
         |> S3.send account
         |> Task.attempt ReceiveListBucket
+
+deleteObject : S3.Types.Account -> S3.Types.KeyInfo -> Cmd Msg
+deleteObject account key =
+    let
+        bucket = (case (head account.buckets) of
+            Just b -> b
+            Nothing -> ""
+            )
+    in
+    S3.deleteObject bucket key.key
+        |> S3.send account
+        |> Task.attempt ReceiveDeleteObject
 
 removeFiles: S3.Types.KeyInfo ->  S3.Types.KeyInfo
 removeFiles key =
@@ -127,8 +140,8 @@ update shared req msg model =
                 Ok keys ->
                     ( model, decryptKeyList (DecryptionMessage keys shared.storage.encryptionKey shared.storage.salt))
 
-        ClickFolder folder ->
-            ( { model | currentDir = folder }, Cmd.none)
+        ClickedFolder folder ->
+            ( { model | currentDir = folder, expandedItem = "" }, Cmd.none)
 
 
         ClickedBack ->
@@ -178,12 +191,32 @@ update shared req msg model =
         ClickedRename keyInfo ->
             ( model, Cmd.none )
 
-        ClickedDelete keyInfo ->
-            ( model, Cmd.none )
+        ClickedDelete key ->
+            case shared.storage.account of
+                Just acc ->
+                    ( model
+                    , deleteObject acc key
+                    )
+                Nothing -> (model, Cmd.none)
+
 
         ClickedCopyLink keyInfo ->
             ( model, Cmd.none )
 
+        ReceiveDeleteObject result ->
+            case result of
+                Err err ->
+                    ( { model | display = Debug.toString err }
+                    , Cmd.none
+                    )
+
+                Ok res ->
+                    case shared.storage.account of
+                        Just acc ->
+                            ( { model | display = res, expandedItem = "" }
+                            , listBucket acc -- Should simply update keyList instead, but used for debugging because delete not working
+                            )
+                        Nothing -> (model, Cmd.none)
 
 -- Listen for shared model changes
 
@@ -832,6 +865,7 @@ viewDropdown model key =
                     , Attr.attribute "role" "listitem"
                     , Attr.tabindex 0
                     , Attr.class "dropdown-item"
+                    , Attr.href "#"
                     ]
                     [ span
                         [ Attr.attribute "data-v-081c0a81" ""
@@ -848,6 +882,7 @@ viewDropdown model key =
                     , Attr.attribute "role" "listitem"
                     , Attr.tabindex 0
                     , Attr.class "dropdown-item"
+                    , Attr.href "#"
                     ]
                     [ span
                         [ Attr.attribute "data-v-081c0a81" ""
@@ -864,6 +899,8 @@ viewDropdown model key =
                     , Attr.attribute "role" "listitem"
                     , Attr.tabindex 0
                     , Attr.class "dropdown-item"
+                    , Attr.href "#"
+                    , onClick (ClickedDelete key)
                     ]
                     [ span
                         [ Attr.attribute "data-v-081c0a81" ""
@@ -880,6 +917,7 @@ viewDropdown model key =
                     , Attr.attribute "role" "listitem"
                     , Attr.tabindex 0
                     , Attr.class "dropdown-item"
+                    , Attr.href "#"
                     ]
                     [ span
                         [ Attr.attribute "data-v-081c0a81" ""
@@ -951,7 +989,7 @@ viewFolder model key =
                 [ Attr.attribute "data-v-081c0a81" ""
                 , Attr.class "is-block name"
                 , Attr.href "#"
-                , onClick (ClickFolder key.key)
+                , onClick (ClickedFolder key.key)
                 ]
                 [ text (String.left ((String.length name) - 1) name) ]
             ]
