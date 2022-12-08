@@ -11,7 +11,7 @@ import Page
 import Request exposing (Request)
 import S3
 import S3.Types exposing (Error, KeyList, QueryElement(..))
-import Shared
+import Shared exposing (decryptKeyList, DecryptionMessage)
 import Storage
 import Task
 import View exposing (View)
@@ -23,7 +23,7 @@ page shared req =
         { init = init shared
         , update = update shared req
         , view = view shared
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = subscriptions
         }
 
 type alias Model =
@@ -52,6 +52,7 @@ type Msg
     | ClickedBack
     | ClickedLogout
     | ClickedFilePath String
+    | ReceivedDecryptedKeyList KeyList
 
 listBucket : S3.Types.Account -> Cmd Msg
 listBucket account =
@@ -116,17 +117,7 @@ update shared req msg model =
                     )
 
                 Ok keys ->
-                    let
-                        reducedFolder = List.map removeFiles keys.keys
-                        folders = List.filter isFolder reducedFolder
-                    in
-                    ( { model
-                        | display = "Bucket listing received."
-                        , keyList = Just keys
-                        , folderList = uniqueBy (\k -> k.key) folders
-                      }
-                    , Cmd.none
-                    )
+                    ( model, decryptKeyList (DecryptionMessage keys shared.storage.encryptionKey shared.storage.salt))
 
         ClickFolder folder ->
             ( { model | currentDir = folder }, Cmd.none)
@@ -147,6 +138,26 @@ update shared req msg model =
 
         ClickedFilePath dir ->
             ( model, Cmd.none )
+
+        ReceivedDecryptedKeyList keyList ->
+            let
+                reducedFolder = List.map removeFiles keyList.keys
+                folders = List.filter isFolder reducedFolder
+            in
+            ( { model
+                | display = "Bucket listing received."
+                , keyList = Just keyList
+                , folderList = uniqueBy (\k -> k.key) folders
+              }
+            , Cmd.none
+            )
+
+
+-- Listen for shared model changes
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    Shared.decryptedKeyList ReceivedDecryptedKeyList
 
 
 -- View
@@ -281,6 +292,7 @@ viewMain model account =
                                     [ Attr.attribute "data-v-081c0a81" ""
                                     , Attr.id "search"
                                     , Attr.class "search-btn"
+                                    , Attr.href "#"
                                     ]
                                     [ span
                                         [ Attr.attribute "data-v-081c0a81" ""
@@ -323,7 +335,7 @@ viewMain model account =
                                                     ]
                                                     []
                                                 ]
-                                            , text " Add files" ]
+                                            , text " Upload file" ]
                                         , input
                                             [ Attr.type_ "file"
                                             , Attr.multiple True
@@ -335,6 +347,7 @@ viewMain model account =
                                 , a
                                     [ Attr.attribute "data-v-081c0a81" ""
                                     , Attr.class "add-new is-inline-block"
+                                    , Attr.href "#"
                                     ]
                                     [ div
                                         [ Attr.attribute "data-v-081c0a81" ""
@@ -722,7 +735,7 @@ viewFile model key =
             , Attr.class "has-text-right"
             ]
             [ span []
-                [ text "9 Bytes" ]
+                [ text (String.fromInt key.size ++ " Bytes") ]
             ]
         , td
             [ Attr.attribute "data-v-081c0a81" ""

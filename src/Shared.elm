@@ -5,11 +5,15 @@ port module Shared exposing
     , init
     , subscriptions
     , update
+    , decryptKeyList
+    , decryptedKeyList
+    , DecryptionMessage
     )
 
 import Gen.Route
 import Json.Decode as Json
 import Request exposing (Request)
+import S3.Types
 import Storage exposing (Storage)
 
 
@@ -21,11 +25,9 @@ type alias Model =
     { storage : Storage
     }
 
-type alias CryptMessage =
-    { action: String -- Encrypt/Decrypt
-    , message: String -- Cleartext/Cipher
-    , messageType: String -- Path/File
-    , password: String
+type alias DecryptionMessage =
+    { keyList: S3.Types.KeyList
+    , key: String
     , salt: String
     }
 
@@ -36,8 +38,8 @@ type Msg
 
 -- Ports
 
-port crypt: CryptMessage -> Cmd msg
-port messageReceiver: (String -> msg) -> Sub msg
+port decryptKeyList: DecryptionMessage -> Cmd msg
+port decryptedKeyList: (S3.Types.KeyList -> msg) -> Sub msg
 
 init : Request -> Flags -> ( Model, Cmd Msg )
 init req flags =
