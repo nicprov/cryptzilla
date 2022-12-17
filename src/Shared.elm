@@ -7,11 +7,15 @@ port module Shared exposing
     , update
     , decryptKeyList
     , decryptedKeyList
-    , DecryptionMessage
+    , decryptFile
+    , decryptedFile
+    , KeyListDescriptionMessage
+    , FileDescriptionMessage
     , KeyListDecrypted
     , KeyInfoDecrypted
     )
 
+import Bytes exposing (Bytes)
 import Gen.Route
 import Json.Decode as Json exposing (Decoder)
 import Request exposing (Request)
@@ -27,8 +31,14 @@ type alias Model =
     { storage : Storage
     }
 
-type alias DecryptionMessage =
+type alias KeyListDescriptionMessage =
     { keyList: S3.Types.KeyList
+    , key: String
+    , salt: String
+    }
+
+type alias FileDescriptionMessage =
+    { file: String
     , key: String
     , salt: String
     }
@@ -59,7 +69,10 @@ type Msg
 
 -- Ports
 
-port decryptKeyList: DecryptionMessage -> Cmd msg
+port decryptFile: FileDescriptionMessage -> Cmd msg
+port decryptedFile: (String -> msg) -> Sub msg
+
+port decryptKeyList: KeyListDescriptionMessage -> Cmd msg
 port decryptedKeyList: (KeyListDecrypted -> msg) -> Sub msg
 
 init : Request -> Flags -> ( Model, Cmd Msg )

@@ -1,5 +1,7 @@
 module Pages.Home_ exposing (Model, Msg, page)
 
+import Bytes exposing (Bytes)
+import Bytes.Encode as Encode
 import Common.Alert exposing (viewAlertError)
 import Dict exposing (Dict)
 import Gen.Route
@@ -12,7 +14,7 @@ import Page
 import Request exposing (Request)
 import S3
 import S3.Types exposing (Error, KeyList, QueryElement(..))
-import Shared exposing (decryptKeyList, DecryptionMessage, KeyInfoDecrypted, KeyListDecrypted)
+import Shared exposing (KeyInfoDecrypted, KeyListDecrypted, KeyListDescriptionMessage, decryptFile, decryptKeyList, FileDescriptionMessage)
 import Storage
 import Task
 import View exposing (View)
@@ -36,13 +38,13 @@ type alias Model =
     , expandedItem: String
     , key: String
     , text: String
-    , mimetype: String
     , headers : List ( String, String )
+    , temp: Bytes
     }
 
 init : Shared.Model -> (Model, Cmd Msg)
 init shared =
-    (Model "" Nothing "" [] [] "" "" "" "" []
+    (Model "" Nothing "" [] [] "" "" "" [] (Encode.encode (Encode.unsignedInt8 0))
     , case shared.storage.account of
         Just account ->
             listBucket account
@@ -56,7 +58,6 @@ type Msg
     = ReceiveListBucket (Result Error KeyList)
     | ReceiveDeleteObject (Result Error String)
     | ReceiveGetObject (Result Error ( String, Dict String String ))
-    | ReceiveGetHeaders (Result Error (Dict String String))
     | ListBucket
     | ClickedFolder String
     | ClickedBack
@@ -69,6 +70,7 @@ type Msg
     | ClickedDelete String
     | ClickedCopyLink String
     | ReceivedDecryptedKeyList KeyListDecrypted
+    | ReceivedDecryptedFile String
 
 listBucket : S3.Types.Account -> Cmd Msg
 listBucket account =
@@ -107,18 +109,6 @@ getObject account key  =
         |> S3.send account
         |> Task.attempt ReceiveGetObject
 
-getHeaders : S3.Types.Account -> String -> Cmd Msg
-getHeaders account key =
-    let
-        bucket = (case (head account.buckets) of
-            Just b -> b
-            Nothing -> ""
-            )
-    in
-    S3.getHeaders bucket key
-        |> S3.send account
-        |> Task.attempt ReceiveGetHeaders
-
 removeFiles: KeyInfoDecrypted ->  KeyInfoDecrypted
 removeFiles key =
     let
@@ -148,28 +138,6 @@ isFolder key =
     else
         False
 
-stringEqual : String -> String -> Bool
-stringEqual s1 s2 =
-    String.toLower s1 == String.toLower s2
-
-headersMimetype : List ( String, String ) -> String
-headersMimetype headers =
-    case
-        LE.find
-            (\header ->
-                stringEqual "content-type" <| Tuple.first header
-            )
-            headers
-    of
-        Nothing ->
-            "plain"
-
-        Just ( _, mimetype ) ->
-            if String.startsWith "text/html" <| String.toLower mimetype then
-                "html"
-
-            else
-                "plain"
 
 update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
 update shared req msg model =
@@ -191,7 +159,7 @@ update shared req msg model =
                     )
 
                 Ok keys ->
-                    ( model, decryptKeyList (DecryptionMessage keys shared.storage.encryptionKey shared.storage.salt))
+                    ( model, decryptKeyList (KeyListDescriptionMessage keys shared.storage.encryptionKey shared.storage.salt))
 
         ClickedFolder folder ->
             ( { model | currentDir = folder, expandedItem = "" }, Cmd.none)
@@ -293,35 +261,24 @@ update shared req msg model =
                     , Cmd.none
                     )
 
-                Ok ( res, headers ) ->
-                    case shared.storage.account of
-                        Just acc ->
-                            ( { model
-                                | display = "Got " ++ model.key
-                                , text = res
-                                , mimetype = headersMimetype <| Dict.toList headers
-                              }
-                            , getHeaders acc model.key
-                            )
-                        Nothing -> (model, Cmd.none)
+                Ok ( res, _ ) ->
+                    ( model, decryptFile (FileDescriptionMessage res shared.storage.encryptionKey shared.storage.salt))
 
-
-        ReceiveGetHeaders result ->
-            case result of
-                Err err ->
-                    ( { model | display = Debug.toString err }
-                    , Cmd.none
-                    )
-
-                Ok headers ->
-                    ( { model | headers = Dict.toList headers }
-                    , Cmd.none
-                    )
+        ReceivedDecryptedFile decryptedFile ->
+            ( { model | text = decryptedFile }, Cmd.none )
 
 -- Listen for shared model changes
 
-subscriptions : Model -> Sub Msg
-subscriptions _ =
+subscriptions: Model -> Sub Msg
+subscriptions model =
+    Sub.batch [subscriptionFile model , subscriptionKeyList model]
+
+subscriptionFile: Model -> Sub Msg
+subscriptionFile _ =
+    Shared.decryptedFile ReceivedDecryptedFile
+
+subscriptionKeyList : Model -> Sub Msg
+subscriptionKeyList _ =
     Shared.decryptedKeyList ReceivedDecryptedKeyList
 
 
