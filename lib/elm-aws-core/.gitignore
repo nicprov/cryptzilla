@@ -1,0 +1,7 @@
+/docs.json
+/src/AWS/Services
+/tests/aws4_testsuite
+/tests/Doc/
+elm-stuff
+node_modules
+*.log

@@ -1,0 +1,14 @@
+[{"name": "Digital Ocean",
+  "region": "nyc3",
+  "is-digital-ocean": true,
+  "access-key": "<20-character access key>",
+  "secret-key": "<40-character secret key>",
+  "buckets": ["bucket1","bucket2"]
+ },
+ {"name": "Amazon S3",
+  "region": "us-east-1",
+  "access-key": "<20-character access key>",
+  "secret-key": "<40-character secret key>",
+  "buckets": ["bucket3","bucket4","bucket5"]
+ }
+]

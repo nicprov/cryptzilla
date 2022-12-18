@@ -1,0 +1,4 @@
+#!/bin/bash
+
+elm make $1.elm --output /dev/null
+

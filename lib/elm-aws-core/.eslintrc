@@ -1,0 +1,6 @@
+extends: airbnb
+rules:
+  import/no-dynamic-require: "off"
+  import/no-extraneous-dependencies: "off"
+  no-console: "off"
+  no-param-reassign: "off"
