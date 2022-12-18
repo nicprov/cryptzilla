@@ -1,9 +1,12 @@
 module Pages.Home_ exposing (Model, Msg, page)
 
+import Base64
 import Bytes exposing (Bytes)
+import Bytes.Decode as Decode
 import Bytes.Encode as Encode
 import Common.Alert exposing (viewAlertError)
 import Dict exposing (Dict)
+import File.Download as Download
 import Gen.Route
 import Html exposing (Html, a, button, div, hr, i, img, input, label, li, nav, ol, option, section, select, span, table, tbody, td, text, th, thead, tr, ul)
 import Html.Attributes as Attr
@@ -39,12 +42,11 @@ type alias Model =
     , key: String
     , text: String
     , headers : List ( String, String )
-    , temp: Bytes
     }
 
 init : Shared.Model -> (Model, Cmd Msg)
 init shared =
-    (Model "" Nothing "" [] [] "" "" "" [] (Encode.encode (Encode.unsignedInt8 0))
+    (Model "" Nothing "" [] [] "" "" "" []
     , case shared.storage.account of
         Just account ->
             listBucket account
@@ -57,7 +59,7 @@ init shared =
 type Msg
     = ReceiveListBucket (Result Error KeyList)
     | ReceiveDeleteObject (Result Error String)
-    | ReceiveGetObject (Result Error ( String, Dict String String ))
+    | ReceiveGetObjectBytes (Result Error ( Bytes ))
     | ListBucket
     | ClickedFolder String
     | ClickedBack
@@ -65,7 +67,7 @@ type Msg
     | ClickedSelected KeyInfoDecrypted
     | ClickedFilePath String
     | ClickedDropdown String
-    | ClickedDownload String
+    | ClickedDownload KeyInfoDecrypted
     | ClickedRename String
     | ClickedDelete String
     | ClickedCopyLink String
@@ -97,17 +99,17 @@ deleteObject account key =
         |> S3.send account
         |> Task.attempt ReceiveDeleteObject
 
-getObject : S3.Types.Account -> String -> Cmd Msg
-getObject account key  =
+getBytesObject : S3.Types.Account -> String -> Cmd Msg
+getBytesObject account key  =
     let
         bucket = (case (head account.buckets) of
             Just b -> b
             Nothing -> ""
             )
     in
-    S3.getObjectWithHeaders bucket key
-        |> S3.send account
-        |> Task.attempt ReceiveGetObject
+    S3.getBytesObject bucket key
+        |> S3.sendBytes account
+        |> Task.attempt ReceiveGetObjectBytes
 
 removeFiles: KeyInfoDecrypted ->  KeyInfoDecrypted
 removeFiles key =
@@ -137,6 +139,27 @@ isFolder key =
         True
     else
         False
+
+
+bytesToList : Bytes -> List Int
+bytesToList bytes =
+    let
+        listDecode =
+            bytesListDecode Decode.unsignedInt8 (Bytes.width bytes)
+    in
+    Maybe.withDefault [] (Decode.decode listDecode bytes)
+
+bytesListDecode : Decode.Decoder a -> Int -> Decode.Decoder (List a)
+bytesListDecode decoder len =
+    Decode.loop ( len, [] ) (listStep decoder)
+
+listStep : Decode.Decoder a -> ( Int, List a ) -> Decode.Decoder (Decode.Step ( Int, List a ) (List a))
+listStep decoder ( n, xs ) =
+    if n <= 0 then
+        Decode.succeed (Decode.Done xs)
+
+    else
+        Decode.map (\x -> Decode.Loop ( n - 1, x :: xs )) decoder
 
 
 update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
@@ -209,8 +232,8 @@ update shared req msg model =
         ClickedDownload key ->
             case shared.storage.account of
                 Just acc ->
-                    ( { model | expandedItem = "", key = key }
-                    , getObject acc key
+                    ( { model | expandedItem = "", key = key.keyDecrypted }
+                    , getBytesObject acc key.keyEncrypted
                     )
                 Nothing -> (model, Cmd.none)
 
@@ -254,18 +277,24 @@ update shared req msg model =
                             )
                         Nothing -> (model, Cmd.none)
 
-        ReceiveGetObject result ->
+        ReceivedDecryptedFile decryptedFile ->
+            ( model
+            , Download.string model.key "text" decryptedFile
+            )
+
+        ReceiveGetObjectBytes result ->
             case result of
                 Err err ->
                     ( { model | display = Debug.toString err }
                     , Cmd.none
                     )
 
-                Ok ( res, _ ) ->
-                    ( model, decryptFile (FileDescriptionMessage res shared.storage.encryptionKey shared.storage.salt))
-
-        ReceivedDecryptedFile decryptedFile ->
-            ( { model | text = decryptedFile }, Cmd.none )
+                Ok ( res ) ->
+                    case Base64.fromBytes res of
+                        Just s ->
+                            ( model, decryptFile (FileDescriptionMessage s shared.storage.encryptionKey shared.storage.salt))
+                        Nothing ->
+                            ( model, Cmd.none) -- TODO show error message
 
 -- Listen for shared model changes
 
@@ -923,7 +952,7 @@ viewDropdown model key =
                     , Attr.tabindex 0
                     , Attr.class "dropdown-item"
                     , Attr.href "#"
-                    , onClick (ClickedDownload key.keyEncrypted)
+                    , onClick (ClickedDownload key)
                     ]
                     [ span
                         [ Attr.attribute "data-v-081c0a81" ""

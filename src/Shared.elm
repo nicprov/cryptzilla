@@ -16,10 +16,11 @@ port module Shared exposing
     )
 
 import Bytes exposing (Bytes)
+import Bytes.Decode as Decode
 import Gen.Route
 import Json.Decode as Json exposing (Decoder)
-import Request exposing (Request)
 import S3.Types
+import Request exposing (Request)
 import Storage exposing (Storage)
 
 
@@ -65,6 +66,7 @@ type alias KeyListDecrypted =
 
 type Msg
     = StorageUpdated Storage
+
 
 
 -- Ports

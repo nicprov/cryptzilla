@@ -5,10 +5,10 @@ import Gen.Route
 import Html exposing (Html, a, br, button, div, form, h1, hr, i, img, input, label, li, main_, ol, option, p, select, small, span, text)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick, onInput)
+import S3.Types
 import List exposing (head)
 import Page
 import Request exposing (Request)
-import S3.Types
 import Shared
 import Storage exposing (signIn)
 import View exposing (View)

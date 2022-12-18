@@ -12,9 +12,10 @@ port module Storage exposing
 import Json.Decode as Decode exposing (Decoder, decodeValue, field, int, map, map2, nullable, string)
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode exposing (Value, encode, list, string)
-import List exposing (concatMap)
-import S3
+import S3 as S3
 import S3.Types
+import List exposing (concatMap)
+
 
 -- Model
 
