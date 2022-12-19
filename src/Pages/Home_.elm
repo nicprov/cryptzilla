@@ -359,7 +359,7 @@ viewMain model account =
                                 ]
                                 [ img
                                     [ Attr.attribute "data-v-cd57c856" ""
-                                    , Attr.src "https://filegator.io/filegator_logo.svg"
+                                    , Attr.src "/img/logo.png"
                                     ]
                                     []
                                 ]
@@ -397,6 +397,8 @@ viewMain model account =
                                 ]
                                 [ a
                                     [ Attr.attribute "data-v-cd57c856" ""
+                                    , Attr.style "color" "#253b6e"
+                                    , Attr.style "font-weight" "600"
                                     , Attr.class "navbar-item logout"
                                     ]
                                     [ text "Log out" ]
@@ -416,6 +418,7 @@ viewMain model account =
                                 , Attr.attribute "aria-label" "breadcrumbs"
                                 , Attr.class "breadcrumb"
                                 , Attr.style "background-color" "white"
+                                , Attr.style "padding-left" "0"
                                 ]
                                 [ ul
                                     [ Attr.attribute "data-v-081c0a81" ""

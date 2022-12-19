@@ -168,7 +168,7 @@ viewMain model =
                                 ]
                                 [ img
                                     [ Attr.attribute "data-v" ""
-                                    , Attr.src "https://filegator.io/filegator_logo.svg"
+                                    , Attr.src "/img/logo.png"
                                     , Attr.class "logo"
                                     ]
                                     []
