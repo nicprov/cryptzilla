@@ -15,9 +15,9 @@ module S3 exposing
     , send, sendBytes
     , listKeys
     , getObject, getFullObject, getHeaders, getObjectWithHeaders, getBytesObject
-    , putHtmlObject, putPublicObject, putObject
+    , putHtmlObject, putPublicObject, putObject, putBytesObject
     , deleteObject
-    , htmlBody, jsonBody, stringBody
+    , htmlBody, jsonBody, stringBody, bytesBody
     , addQuery, addHeaders
     , readAccounts, decodeAccounts, accountDecoder, encodeAccount
     , objectPath, parserRequest, stringRequest, requestUrl
@@ -671,6 +671,9 @@ stringBody : Mimetype -> String -> Body
 stringBody =
     AWS.Http.stringBody
 
+bytesBody : Mimetype -> Bytes -> Body
+bytesBody =
+    AWS.Http.bytesBody
 
 {-| Write an object to S3, with default permissions (private).
 
@@ -684,6 +687,12 @@ putObject bucket key body =
         (objectPath bucket key)
         body
 
+putBytesObject : Bucket -> Key -> Body -> Request String
+putBytesObject bucket key body =
+    stringRequest "putObject"
+        PUT
+        (objectPath bucket key)
+        body
 
 {-| Write an object to S3, with public-read permission.
 

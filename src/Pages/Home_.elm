@@ -6,7 +6,9 @@ import Bytes.Decode as Decode
 import Bytes.Encode as Encode
 import Common.Alert exposing (viewAlertError)
 import Dict exposing (Dict)
+import File exposing (File, name)
 import File.Download as Download
+import File.Select as Select
 import Gen.Route
 import Html exposing (Html, a, button, div, hr, i, img, input, label, li, nav, ol, option, section, select, span, table, tbody, td, text, th, thead, tr, ul)
 import Html.Attributes as Attr
@@ -17,7 +19,7 @@ import Page
 import Request exposing (Request)
 import S3
 import S3.Types exposing (Error, KeyList, QueryElement(..))
-import Shared exposing (KeyInfoDecrypted, KeyListDecrypted, KeyListDescriptionMessage, decryptFile, decryptKeyList, FileDescriptionMessage)
+import Shared exposing (FileDescriptionMessage, KeyInfoDecrypted, KeyListDecrypted, KeyListDescriptionMessage, decryptFile, decryptKeyList, encryptFile)
 import Storage
 import Task
 import View exposing (View)
@@ -60,10 +62,13 @@ type Msg
     = ReceiveListBucket (Result Error KeyList)
     | ReceiveDeleteObject (Result Error String)
     | ReceiveGetObjectBytes (Result Error ( Bytes ))
+    | ReceivePutObjectBytes (Result Error String)
     | ListBucket
+    | FileConvertedToBytes Bytes
     | ClickedFolder String
     | ClickedBack
     | ClickedLogout
+    | ClickedUploadFile
     | ClickedSelected KeyInfoDecrypted
     | ClickedFilePath String
     | ClickedDropdown String
@@ -71,8 +76,10 @@ type Msg
     | ClickedRename String
     | ClickedDelete String
     | ClickedCopyLink String
+    | FileSelected File
     | ReceivedDecryptedKeyList KeyListDecrypted
     | ReceivedDecryptedFile String
+    | ReceivedEncryptedFile (String, String)
 
 listBucket : S3.Types.Account -> Cmd Msg
 listBucket account =
@@ -110,6 +117,19 @@ getBytesObject account key  =
     S3.getBytesObject bucket key
         |> S3.sendBytes account
         |> Task.attempt ReceiveGetObjectBytes
+
+putBytesObject : S3.Types.Account -> Bytes -> String-> Cmd Msg
+putBytesObject account encryptedFile fileName=
+    let
+        bucket = (case (head account.buckets) of
+            Just b -> b
+            Nothing -> ""
+            )
+        body = S3.bytesBody "application/octet-stream" encryptedFile
+    in
+    S3.putBytesObject bucket fileName body
+        |> S3.send account
+        |> Task.attempt ReceivePutObjectBytes
 
 removeFiles: KeyInfoDecrypted ->  KeyInfoDecrypted
 removeFiles key =
@@ -279,7 +299,7 @@ update shared req msg model =
 
         ReceivedDecryptedFile decryptedFile ->
             ( model
-            , Download.string model.key "text" decryptedFile
+            , Download.string model.key "application/text" decryptedFile
             )
 
         ReceiveGetObjectBytes result ->
@@ -292,18 +312,64 @@ update shared req msg model =
                 Ok ( res ) ->
                     case Base64.fromBytes res of
                         Just s ->
-                            ( model, decryptFile (FileDescriptionMessage s shared.storage.encryptionKey shared.storage.salt))
+                            ( model, decryptFile (FileDescriptionMessage s "" shared.storage.encryptionKey shared.storage.salt))
                         Nothing ->
                             ( model, Cmd.none) -- TODO show error message
+
+        ClickedUploadFile ->
+            ( model
+            , Select.file ["application/text"] FileSelected
+            )
+
+        FileSelected file ->
+            ( ( { model | key = (name file)}, Task.perform FileConvertedToBytes (File.toBytes file)))
+
+        FileConvertedToBytes bytes ->
+            case Base64.fromBytes bytes of
+                Just b ->
+                    ( model, encryptFile (FileDescriptionMessage b model.key shared.storage.encryptionKey shared.storage.salt))
+
+                Nothing ->
+                    ( model, Cmd.none) -- TODO show error message
+
+        ReceivedEncryptedFile encryptedFile ->
+            case shared.storage.account of
+                Just acc ->
+                    case Base64.toBytes (Tuple.first encryptedFile) of
+                        Just b ->
+                            ( { model | key = (Tuple.second encryptedFile) }
+                            , putBytesObject acc b (Tuple.second encryptedFile)
+                            )
+
+                        Nothing ->
+                            ( model, Cmd.none) -- TODO show error message
+
+                Nothing -> (model, Cmd.none)
+
+        ReceivePutObjectBytes result ->
+            case result of
+                Err err ->
+                    ( { model | display = Debug.toString err }
+                    , Cmd.none
+                    )
+
+                Ok ( _ ) ->
+                    ( { model | display = "Success" }
+                    , Cmd.none
+                    )
 
 -- Listen for shared model changes
 
 subscriptions: Model -> Sub Msg
 subscriptions model =
-    Sub.batch [subscriptionFile model , subscriptionKeyList model]
+    Sub.batch [subscriptionEncryptFile model, subscriptionDecryptFile model , subscriptionKeyList model]
 
-subscriptionFile: Model -> Sub Msg
-subscriptionFile _ =
+subscriptionEncryptFile: Model -> Sub Msg
+subscriptionEncryptFile _ =
+    Shared.encryptedFile ReceivedEncryptedFile
+
+subscriptionDecryptFile: Model -> Sub Msg
+subscriptionDecryptFile _ =
     Shared.decryptedFile ReceivedDecryptedFile
 
 subscriptionKeyList : Model -> Sub Msg
@@ -479,6 +545,8 @@ viewMain model account =
                                         [ a
                                             [ Attr.attribute "data-v-081c0a81" ""
                                             , Attr.class "is-inline-block"
+                                            , Attr.href "#"
+                                            , onClick ClickedUploadFile
                                             ]
                                             [ span
                                                 [ Attr.attribute "data-v-081c0a81" ""

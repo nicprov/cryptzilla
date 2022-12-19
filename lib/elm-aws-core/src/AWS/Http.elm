@@ -3,7 +3,7 @@ module AWS.Http exposing
     , Method(..), Path, Request, BytesRequest
     , request, requestBytes
     , Body, MimeType
-    , emptyBody, stringBody, jsonBody
+    , emptyBody, stringBody, jsonBody, bytesBody
     , addHeaders, addQuery, addHeadersBytes
     , ResponseDecoder
     , fullDecoder, jsonFullDecoder, stringBodyDecoder, bytesBodyDecoder, jsonBodyDecoder, constantDecoder
@@ -258,6 +258,10 @@ stringBody : MimeType -> String -> Body
 stringBody =
     AWS.Internal.Body.string
 
+
+bytesBody : MimeType -> Bytes -> Body
+bytesBody =
+    AWS.Internal.Body.bytes
 
 
 --=== Add headers or query parameters to a Request

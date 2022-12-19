@@ -26,7 +26,17 @@ app.ports.decryptKeyList.subscribe(function(message) {
 })
 
 app.ports.decryptFile.subscribe(function(message) {
-    var file = message["file"]
+    generateKey(message["key"], message["salt"], (error, key) => {
+        if (error != null)
+            throw new Error("Unable to generate key");
+        var keyBase64 = nacl.util.encodeBase64(key);
+        var messageBase64 = message["file"];
+        const d = decrypt(keyBase64, messageBase64)
+        app.ports.decryptedFile.send(d);
+    });
+})
+
+app.ports.encryptFile.subscribe(function(message) {
     window.rclone.Rclone({
         password: message["key"],
         salt: message["salt"]
@@ -36,17 +46,18 @@ app.ports.decryptFile.subscribe(function(message) {
                 throw new Error("Unable to generate key");
             var keyBase64 = nacl.util.encodeBase64(key);
             var messageBase64 = message["file"];
-            const d = decrypt(keyBase64, messageBase64)
-            app.ports.decryptedFile.send(d);
+            const d = encrypt(keyBase64, messageBase64)
+            app.ports.encryptedFile.send([d, rclone.Path.encrypt(message["name"])]);
         });
     }).catch(error => {
         console.log(error);
     })
 })
 
-function encrypt(key, nonce, messageToEncrypt){
+function encrypt(key, messageToEncrypt){
+    const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
     const keyUint8Array = nacl.util.decodeBase64(key);
-    const messageUint8 = nacl.util.decodeUTF8(messageToEncrypt);
+    const messageUint8 = nacl.util.decodeBase64(messageToEncrypt);
     const box = nacl.secretbox(messageUint8, nonce, keyUint8Array);
     const fileMagic = new Uint8Array([82, 67, 76, 79, 78, 69, 0, 0]); // RCLONE\x00\0x00
     const fullMessage = new Uint8Array(fileMagic.length + nonce.length + box.length);

@@ -9,6 +9,8 @@ port module Shared exposing
     , decryptedKeyList
     , decryptFile
     , decryptedFile
+    , encryptFile
+    , encryptedFile
     , KeyListDescriptionMessage
     , FileDescriptionMessage
     , KeyListDecrypted
@@ -40,6 +42,7 @@ type alias KeyListDescriptionMessage =
 
 type alias FileDescriptionMessage =
     { file: String
+    , name: String
     , key: String
     , salt: String
     }
@@ -70,6 +73,9 @@ type Msg
 
 
 -- Ports
+
+port encryptFile: FileDescriptionMessage -> Cmd msg
+port encryptedFile: ((String, String) -> msg) -> Sub msg
 
 port decryptFile: FileDescriptionMessage -> Cmd msg
 port decryptedFile: (String -> msg) -> Sub msg
