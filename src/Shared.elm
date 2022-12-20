@@ -11,10 +11,13 @@ port module Shared exposing
     , decryptedFile
     , encryptFile
     , encryptedFile
+    , bodyToSHA256
+    , sha256Body
     , KeyListDescriptionMessage
     , FileDescriptionMessage
     , KeyListDecrypted
     , KeyInfoDecrypted
+    , EncryptedFile
     )
 
 import Bytes exposing (Bytes)
@@ -67,15 +70,23 @@ type alias KeyListDecrypted =
     , keys : List KeyInfoDecrypted
     }
 
+type alias EncryptedFile =
+    { encryptedFile: String
+    , encryptedPath: String
+    , sha256: String
+    }
+
 type Msg
     = StorageUpdated Storage
 
 
 
 -- Ports
+port bodyToSHA256: FileDescriptionMessage -> Cmd msg
+port sha256Body: (String -> msg) -> Sub msg
 
 port encryptFile: FileDescriptionMessage -> Cmd msg
-port encryptedFile: ((String, String) -> msg) -> Sub msg
+port encryptedFile: (EncryptedFile -> msg) -> Sub msg
 
 port decryptFile: FileDescriptionMessage -> Cmd msg
 port decryptedFile: (String -> msg) -> Sub msg

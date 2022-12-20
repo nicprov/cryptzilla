@@ -32,6 +32,7 @@ app.ports.decryptFile.subscribe(function(message) {
         var keyBase64 = nacl.util.encodeBase64(key);
         var messageBase64 = message["file"];
         const d = decrypt(keyBase64, messageBase64)
+        console.log()
         app.ports.decryptedFile.send(d);
     });
 })
@@ -46,8 +47,8 @@ app.ports.encryptFile.subscribe(function(message) {
                 throw new Error("Unable to generate key");
             var keyBase64 = nacl.util.encodeBase64(key);
             var messageBase64 = message["file"];
-            const d = encrypt(keyBase64, messageBase64)
-            app.ports.encryptedFile.send([d, rclone.Path.encrypt(message["name"])]);
+            const e = encrypt(keyBase64, messageBase64)
+            app.ports.encryptedFile.send({encryptedFile:e, encryptedPath: rclone.Path.encrypt(message["name"]), sha256: CryptoJS.SHA256(nacl.util.decodeBase64(e)).toString()});
         });
     }).catch(error => {
         console.log(error);

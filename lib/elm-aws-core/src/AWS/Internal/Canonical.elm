@@ -91,8 +91,8 @@ signedHeaders headers =
 
 canonicalPayload : Body -> String
 canonicalPayload =
-    AWS.Internal.Body.toString >> sha256
-
+    --AWS.Internal.Body.toString >> sha256
+    AWS.Internal.Body.toString
 
 
 -- HELPERS

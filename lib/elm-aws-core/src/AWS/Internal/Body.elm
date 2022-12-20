@@ -10,15 +10,16 @@ module AWS.Internal.Body exposing
     )
 
 import Bytes exposing (Bytes)
+import Hex.Convert
 import Http
 import Json.Encode
-
+import SHA256
 
 type Body
     = Empty
     | Json Json.Encode.Value
     | String String String
-    | Bytes String Bytes
+    | Bytes String Bytes String
 
 
 toHttp : Body -> Http.Body
@@ -33,7 +34,7 @@ toHttp body =
         String mimetype val ->
             Http.stringBody mimetype val
 
-        Bytes mimetype val ->
+        Bytes mimetype val _ ->
             Http.bytesBody mimetype val
 
 
@@ -59,9 +60,8 @@ toString body =
         String _ val ->
             val
 
-        Bytes _ _ ->
-            ""
-
+        Bytes _ _ sha256 ->
+            "UNSIGNED-PAYLOAD"
 
 empty : Body
 empty =
@@ -77,6 +77,6 @@ string : String -> String -> Body
 string =
     String
 
-bytes: String -> Bytes -> Body
+bytes: String -> Bytes -> String -> Body
 bytes =
     Bytes

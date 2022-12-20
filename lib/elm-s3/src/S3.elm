@@ -671,7 +671,7 @@ stringBody : Mimetype -> String -> Body
 stringBody =
     AWS.Http.stringBody
 
-bytesBody : Mimetype -> Bytes -> Body
+bytesBody : Mimetype -> Bytes -> String -> Body
 bytesBody =
     AWS.Http.bytesBody
 

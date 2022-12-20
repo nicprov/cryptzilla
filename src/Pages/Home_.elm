@@ -19,7 +19,7 @@ import Page
 import Request exposing (Request)
 import S3
 import S3.Types exposing (Error, KeyList, QueryElement(..))
-import Shared exposing (FileDescriptionMessage, KeyInfoDecrypted, KeyListDecrypted, KeyListDescriptionMessage, decryptFile, decryptKeyList, encryptFile)
+import Shared exposing (EncryptedFile, FileDescriptionMessage, KeyInfoDecrypted, KeyListDecrypted, KeyListDescriptionMessage, bodyToSHA256, decryptFile, decryptKeyList, encryptFile)
 import Storage
 import Task
 import View exposing (View)
@@ -79,7 +79,8 @@ type Msg
     | FileSelected File
     | ReceivedDecryptedKeyList KeyListDecrypted
     | ReceivedDecryptedFile String
-    | ReceivedEncryptedFile (String, String)
+    | ReceivedEncryptedFile EncryptedFile
+    | ReceivedBodySHA256 String
 
 listBucket : S3.Types.Account -> Cmd Msg
 listBucket account =
@@ -118,16 +119,16 @@ getBytesObject account key  =
         |> S3.sendBytes account
         |> Task.attempt ReceiveGetObjectBytes
 
-putBytesObject : S3.Types.Account -> Bytes -> String-> Cmd Msg
-putBytesObject account encryptedFile fileName=
+putBytesObject : S3.Types.Account -> Bytes -> String -> String -> Cmd Msg
+putBytesObject account encryptedFile encryptedFileName sha256=
     let
         bucket = (case (head account.buckets) of
             Just b -> b
             Nothing -> ""
             )
-        body = S3.bytesBody "application/octet-stream" encryptedFile
+        body = S3.bytesBody "application/octet-stream" encryptedFile sha256
     in
-    S3.putBytesObject bucket fileName body
+    S3.putBytesObject bucket encryptedFileName body
         |> S3.send account
         |> Task.attempt ReceivePutObjectBytes
 
@@ -159,27 +160,6 @@ isFolder key =
         True
     else
         False
-
-
-bytesToList : Bytes -> List Int
-bytesToList bytes =
-    let
-        listDecode =
-            bytesListDecode Decode.unsignedInt8 (Bytes.width bytes)
-    in
-    Maybe.withDefault [] (Decode.decode listDecode bytes)
-
-bytesListDecode : Decode.Decoder a -> Int -> Decode.Decoder (List a)
-bytesListDecode decoder len =
-    Decode.loop ( len, [] ) (listStep decoder)
-
-listStep : Decode.Decoder a -> ( Int, List a ) -> Decode.Decoder (Decode.Step ( Int, List a ) (List a))
-listStep decoder ( n, xs ) =
-    if n <= 0 then
-        Decode.succeed (Decode.Done xs)
-
-    else
-        Decode.map (\x -> Decode.Loop ( n - 1, x :: xs )) decoder
 
 
 update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
@@ -332,13 +312,14 @@ update shared req msg model =
                 Nothing ->
                     ( model, Cmd.none) -- TODO show error message
 
-        ReceivedEncryptedFile encryptedFile ->
+        ReceivedEncryptedFile file ->
             case shared.storage.account of
                 Just acc ->
-                    case Base64.toBytes (Tuple.first encryptedFile) of
+                    case Base64.toBytes file.encryptedFile of
                         Just b ->
-                            ( { model | key = (Tuple.second encryptedFile) }
-                            , putBytesObject acc b (Tuple.second encryptedFile)
+                            ( { model | key = file.encryptedPath }
+                            , putBytesObject acc b file.encryptedPath file.sha256
+                            --, bodyToSHA256 (FileDescriptionMessage)
                             )
 
                         Nothing ->
@@ -358,11 +339,18 @@ update shared req msg model =
                     , Cmd.none
                     )
 
+        ReceivedBodySHA256 string ->
+            (model, Cmd.none)
+
 -- Listen for shared model changes
 
 subscriptions: Model -> Sub Msg
 subscriptions model =
     Sub.batch [subscriptionEncryptFile model, subscriptionDecryptFile model , subscriptionKeyList model]
+
+subscriptionSHA256: Model -> Sub Msg
+subscriptionSHA256 _ =
+    Shared.sha256Body ReceivedBodySHA256
 
 subscriptionEncryptFile: Model -> Sub Msg
 subscriptionEncryptFile _ =
