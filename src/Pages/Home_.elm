@@ -79,6 +79,7 @@ type Msg
     | ClickedBack
     | ClickedLogout
     | ClickedUploadFile
+    | ClickedRefresh
     | ClickedNewFolder
     | ClickedCancelFolderModal
     | ClickedCreateFolder
@@ -440,6 +441,14 @@ update shared req msg model =
         ChangedFolderName folder ->
             ( { model | folderName = folder }, Cmd.none)
 
+        ClickedRefresh ->
+            case shared.storage.account of
+                Just acc ->
+                    ( { model | expandedItem = "", status = Loading "Reloading items" }
+                    , listBucket acc
+                    )
+                Nothing -> (model, Cmd.none)
+
 -- Listen for shared model changes
 subscriptions: Model -> Sub Msg
 subscriptions model =
@@ -681,54 +690,37 @@ viewMain model account =
                                                     ]
                                                 , text " New folder" ]
                                             ]
-                                        , div
-                                            [ Attr.attribute "aria-hidden" "true"
-                                            , Attr.class "background"
-                                            , Attr.style "display" "none"
+                                        ]
+                                    ]
+                                , a
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "add-new is-inline-block"
+                                    , Attr.href "#"
+                                    ]
+                                    [ div
+                                        [ Attr.attribute "data-v-081c0a81" ""
+                                        , Attr.class "dropdown is-mobile-modal"
+                                        ]
+                                        [ div
+                                            [ Attr.attribute "role" "button"
+                                            , Attr.attribute "aria-haspopup" "true"
+                                            , Attr.class "dropdown-trigger"
                                             ]
-                                            []
-                                        , div
-                                            [ Attr.attribute "aria-hidden" "true"
-                                            , Attr.class "dropdown-menu"
-                                            , Attr.style "display" "none"
-                                            ]
-                                            [ div
-                                                [ Attr.attribute "role" "list"
-                                                , Attr.class "dropdown-content"
+                                            [ span
+                                                [ Attr.attribute "data-v-081c0a81" ""
+                                                , Attr.href "#"
+                                                , onClick ClickedRefresh
                                                 ]
-                                                [ a
+                                                [ span
                                                     [ Attr.attribute "data-v-081c0a81" ""
-                                                    , Attr.attribute "role" "listitem"
-                                                    , Attr.tabindex 0
-                                                    , Attr.class "dropdown-item"
+                                                    , Attr.class "icon is-small"
                                                     ]
-                                                    [ span
-                                                        [ Attr.attribute "data-v-081c0a81" ""
-                                                        , Attr.class "icon is-small"
+                                                    [ i
+                                                        [ Attr.class "fas fa-redo-alt"
                                                         ]
-                                                        [ i
-                                                            [ Attr.class "fas fa-folder"
-                                                            ]
-                                                            []
-                                                        ]
-                                                    , text "Folder" ]
-                                                , a
-                                                    [ Attr.attribute "data-v-081c0a81" ""
-                                                    , Attr.attribute "role" "listitem"
-                                                    , Attr.tabindex 0
-                                                    , Attr.class "dropdown-item"
+                                                        []
                                                     ]
-                                                    [ span
-                                                        [ Attr.attribute "data-v-081c0a81" ""
-                                                        , Attr.class "icon is-small"
-                                                        ]
-                                                        [ i
-                                                            [ Attr.class "fas fa-file"
-                                                            ]
-                                                            []
-                                                        ]
-                                                    , text "File" ]
-                                                ]
+                                                , text " Refresh" ]
                                             ]
                                         ]
                                     ]
