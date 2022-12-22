@@ -335,9 +335,14 @@ update shared req msg model =
                     )
 
                 Ok ( _ ) ->
-                    ( { model | display = "Success" }
-                    , Cmd.none
-                    )
+                    case shared.storage.account of
+                        Just acc ->
+                            ( { model | display = "Success" }
+                            , listBucket acc
+                            )
+
+                        Nothing -> (model, Cmd.none)
+
 
         ReceivedBodySHA256 string ->
             (model, Cmd.none)
