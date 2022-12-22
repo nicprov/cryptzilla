@@ -11,8 +11,8 @@ port module Shared exposing
     , decryptedFile
     , encryptFile
     , encryptedFile
-    , bodyToSHA256
-    , sha256Body
+    , encryptFileName
+    , encryptedFileName
     , KeyListDescriptionMessage
     , FileDescriptionMessage
     , KeyListDecrypted
@@ -82,8 +82,8 @@ type Msg
 
 
 -- Ports
-port bodyToSHA256: FileDescriptionMessage -> Cmd msg
-port sha256Body: (String -> msg) -> Sub msg
+port encryptFileName: FileDescriptionMessage -> Cmd msg
+port encryptedFileName: (String -> msg) -> Sub msg
 
 port encryptFile: FileDescriptionMessage -> Cmd msg
 port encryptedFile: (EncryptedFile -> msg) -> Sub msg

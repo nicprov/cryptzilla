@@ -10,16 +10,16 @@ import File exposing (File, name)
 import File.Download as Download
 import File.Select as Select
 import Gen.Route
-import Html exposing (Html, a, button, div, hr, i, img, input, label, li, nav, ol, option, section, select, span, table, tbody, td, text, th, thead, tr, ul)
+import Html exposing (Html, a, button, div, footer, hr, i, img, input, label, li, nav, ol, option, p, section, select, span, table, tbody, td, text, th, thead, tr, ul)
 import Html.Attributes as Attr
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onInput)
 import List exposing (head)
 import List.Extra as LE exposing (uniqueBy)
 import Page
 import Request exposing (Request)
 import S3
 import S3.Types exposing (Error, KeyList, QueryElement(..))
-import Shared exposing (EncryptedFile, FileDescriptionMessage, KeyInfoDecrypted, KeyListDecrypted, KeyListDescriptionMessage, bodyToSHA256, decryptFile, decryptKeyList, encryptFile)
+import Shared exposing (EncryptedFile, FileDescriptionMessage, KeyInfoDecrypted, KeyListDecrypted, KeyListDescriptionMessage, decryptFile, decryptKeyList, encryptFile, encryptFileName)
 import Storage
 import Task
 import View exposing (View)
@@ -45,6 +45,8 @@ type alias Model =
     , text: String
     , headers : List ( String, String )
     , status: Status
+    , folderModal: Bool
+    , folderName: String
     }
 
 type Status
@@ -55,7 +57,7 @@ type Status
 
 init : Shared.Model -> (Model, Cmd Msg)
 init shared =
-    (Model "" Nothing "" [] [] "" "" "" [] (Loading "Loading...")
+    (Model "" Nothing "" [] [] "" "" "" [] (Loading "Loading...") False ""
     , case shared.storage.account of
         Just account ->
             listBucket account
@@ -70,22 +72,28 @@ type Msg
     | ReceiveDeleteObject (Result Error String)
     | ReceiveGetObjectBytes (Result Error ( Bytes ))
     | ReceivePutObjectBytes (Result Error String)
+    | ReceivedPutFolder (Result Error String)
     | ListBucket
     | FileConvertedToBytes Bytes
     | ClickedFolder String
     | ClickedBack
     | ClickedLogout
     | ClickedUploadFile
+    | ClickedNewFolder
+    | ClickedCancelFolderModal
+    | ClickedCreateFolder
     | ClickedSelected KeyInfoDecrypted
     | ClickedFilePath String
     | ClickedDropdown String
     | ClickedDownload KeyInfoDecrypted
     | ClickedDelete String
     | ClickedCopyLink String
+    | ChangedFolderName String
     | FileSelected File
     | ReceivedDecryptedKeyList KeyListDecrypted
     | ReceivedDecryptedFile String
     | ReceivedEncryptedFile EncryptedFile
+    | ReceivedEncryptedFileName String
 
 listBucket : S3.Types.Account -> Cmd Msg
 listBucket account =
@@ -123,6 +131,19 @@ getBytesObject account key  =
     S3.getBytesObject bucket key
         |> S3.sendBytes account
         |> Task.attempt ReceiveGetObjectBytes
+
+putFolder : S3.Types.Account -> String -> Cmd Msg
+putFolder account encryptedFileName=
+    let
+        bucket = (case (head account.buckets) of
+            Just b -> b
+            Nothing -> ""
+            )
+        body = S3.stringBody "" ""
+    in
+    S3.putObject bucket encryptedFileName body
+        |> S3.send account
+        |> Task.attempt ReceivedPutFolder
 
 putBytesObject : S3.Types.Account -> Bytes -> String -> String -> Cmd Msg
 putBytesObject account encryptedFile encryptedFileName sha256=
@@ -375,12 +396,58 @@ update shared req msg model =
 
                         Nothing -> ( { model | status = None }, Cmd.none)
 
+        ClickedNewFolder ->
+            ( { model | expandedItem = "", folderModal = True}
+            , Cmd.none
+            )
+
+        ReceivedEncryptedFileName encryptedFolder ->
+            case shared.storage.account of
+                Just acc ->
+                    ( { model | expandedItem = "", status = Loading "Encrypting folder name..." }
+                    , putFolder acc encryptedFolder
+                    )
+
+                Nothing -> (model, Cmd.none)
+
+        ReceivedPutFolder result ->
+            case result of
+                Err err ->
+                    ( { model | display = Debug.toString err, status = Failure "Unable to create folder" }
+                    , Cmd.none
+                    )
+
+                Ok ( _ ) ->
+                     case shared.storage.account of
+                        Just acc ->
+                            ( { model | status = Success "Successfully created folder" }
+                            , listBucket acc
+                            )
+
+                        Nothing -> ( { model | status = None }, Cmd.none)
+
+        ClickedCancelFolderModal ->
+            ( { model | folderModal = False, status = None }, Cmd.none )
+
+        ClickedCreateFolder ->
+            if model.folderName /= "" then
+                ( { model | folderModal = False, status = Loading "Creating folder..." }
+                , encryptFileName (FileDescriptionMessage "" (model.currentDir ++ model.folderName ++ "/") shared.storage.encryptionKey shared.storage.salt)
+                )
+            else
+                ( { model | status = Failure "Folder name cannot be empty" }, Cmd.none)
+
+        ChangedFolderName folder ->
+            ( { model | folderName = folder }, Cmd.none)
 
 -- Listen for shared model changes
-
 subscriptions: Model -> Sub Msg
 subscriptions model =
-    Sub.batch [subscriptionEncryptFile model, subscriptionDecryptFile model , subscriptionKeyList model]
+    Sub.batch [subscriptionEncryptFile model, subscriptionDecryptFile model , subscriptionKeyList model, subscriptionEncryptFileName model]
+
+subscriptionEncryptFileName: Model -> Sub Msg
+subscriptionEncryptFileName _ =
+    Shared.encryptedFileName ReceivedEncryptedFileName
 
 subscriptionEncryptFile: Model -> Sub Msg
 subscriptionEncryptFile _ =
@@ -600,6 +667,8 @@ viewMain model account =
                                             ]
                                             [ span
                                                 [ Attr.attribute "data-v-081c0a81" ""
+                                                , Attr.href "#"
+                                                , onClick ClickedNewFolder
                                                 ]
                                                 [ span
                                                     [ Attr.attribute "data-v-081c0a81" ""
@@ -610,7 +679,7 @@ viewMain model account =
                                                         ]
                                                         []
                                                     ]
-                                                , text " New" ]
+                                                , text " New folder" ]
                                             ]
                                         , div
                                             [ Attr.attribute "aria-hidden" "true"
@@ -891,11 +960,79 @@ viewMain model account =
                                     [ text ("Selected: " ++ (String.fromInt (List.length model.selectedList))) ]
                                 ]
                             ]
+                        , if model.folderModal then
+                            viewFolderModal
+                          else
+                            div [] []
                         ]
                     ]
                 ]
             ]
         ]
+
+viewFolderModal: Html Msg
+viewFolderModal =
+    div
+    [ Attr.class "dialog modal is-active"
+    ]
+    [ div
+        [ Attr.class "modal-background"
+        ]
+        []
+    , div
+        [ Attr.class "modal-card animation-content"
+        ]
+        [
+        section
+            [ Attr.class "modal-card-body is-titleless"
+            ]
+            [ div
+                [ Attr.class "media"
+                ]
+                [
+                div
+                    [ Attr.class "media-content"
+                    ]
+                    [ p []
+                        []
+                    , div
+                        [ Attr.class "field"
+                        ]
+                        [ div
+                            [ Attr.class "control"
+                            ]
+                            [ input
+                                [ Attr.placeholder "MyFolder"
+                                , Attr.maxlength 100
+                                , Attr.class "input"
+                                , onInput ChangedFolderName
+                                ]
+                                []
+                            ]
+                        , p
+                            [ Attr.class "help is-danger"
+                            ]
+                            []
+                        ]
+                    ]
+                ]
+            ]
+        , footer
+            [ Attr.class "modal-card-foot"
+            ]
+            [ button
+                [ Attr.class "button"
+                , onClick ClickedCancelFolderModal
+                ]
+                [ text "Cancel" ]
+            , button
+                [ Attr.class "button is-primary"
+                , onClick ClickedCreateFolder
+                ]
+                [ text "Create" ]
+            ]
+        ]
+    ]
 
 viewFilePath: String -> Html Msg
 viewFilePath dir =

@@ -54,6 +54,17 @@ app.ports.encryptFile.subscribe(function(message) {
     })
 })
 
+app.ports.encryptFileName.subscribe(function(message) {
+    window.rclone.Rclone({
+        password: message["key"],
+        salt: message["salt"]
+    }).then(rclone => {
+        app.ports.encryptedFileName.send(rclone.Path.encrypt(message["name"]));
+    }).catch(error => {
+        console.log(error);
+    })
+})
+
 function encrypt(key, messageToEncrypt){
     const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
     const keyUint8Array = nacl.util.decodeBase64(key);
