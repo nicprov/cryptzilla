@@ -32,7 +32,6 @@ app.ports.decryptFile.subscribe(function(message) {
         var keyBase64 = nacl.util.encodeBase64(key);
         var messageBase64 = message["file"];
         const d = decrypt(keyBase64, messageBase64)
-        console.log()
         app.ports.decryptedFile.send(d);
     });
 })
@@ -71,7 +70,6 @@ function encrypt(key, messageToEncrypt){
 function decrypt(key, messageWithNonce){
     const keyUint8Array = nacl.util.decodeBase64(key);
     const messageWithNonceAsUint8Array = nacl.util.decodeBase64(messageWithNonce);
-
     const magic = messageWithNonceAsUint8Array
     .subarray(0, 8)
     .reduce((acc, i) => acc + String.fromCharCode(i), '');
@@ -88,12 +86,11 @@ function decrypt(key, messageWithNonce){
     );
 
     const decrypted = nacl.secretbox.open(message, nonce, keyUint8Array);
-
     if (!decrypted) {
         throw new Error("Could not decrypt message");
     }
 
-    return nacl.util.encodeUTF8(decrypted);
+    return nacl.util.encodeBase64(decrypted);
 }
 
 function generateKey(password, salt, callback){

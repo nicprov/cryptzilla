@@ -80,7 +80,6 @@ type Msg
     | ReceivedDecryptedKeyList KeyListDecrypted
     | ReceivedDecryptedFile String
     | ReceivedEncryptedFile EncryptedFile
-    | ReceivedBodySHA256 String
 
 listBucket : S3.Types.Account -> Cmd Msg
 listBucket account =
@@ -278,9 +277,27 @@ update shared req msg model =
                         Nothing -> (model, Cmd.none)
 
         ReceivedDecryptedFile decryptedFile ->
-            ( model
-            , Download.string model.key "application/text" decryptedFile
-            )
+            let
+                ext = List.head (List.reverse (String.split "." model.key))
+            in
+            case ext of
+                Just e ->
+                    if e == "txt" then
+                        case Base64.toString decryptedFile of
+                            Just t ->
+                                ( model, Download.string model.key "text/plain" t)
+                            Nothing ->
+                                ( model, Cmd.none) -- TODO show error message
+                    else
+                        case Base64.toBytes decryptedFile of
+                            Just b ->
+                                ( model, Download.bytes model.key "application/octet-stream" b)
+                            Nothing ->
+                                ( model, Cmd.none) -- TODO show error message
+
+                Nothing ->
+                    ( model, Cmd.none) -- TODO show error message
+
 
         ReceiveGetObjectBytes result ->
             case result of
@@ -344,18 +361,11 @@ update shared req msg model =
                         Nothing -> (model, Cmd.none)
 
 
-        ReceivedBodySHA256 string ->
-            (model, Cmd.none)
-
 -- Listen for shared model changes
 
 subscriptions: Model -> Sub Msg
 subscriptions model =
     Sub.batch [subscriptionEncryptFile model, subscriptionDecryptFile model , subscriptionKeyList model]
-
-subscriptionSHA256: Model -> Sub Msg
-subscriptionSHA256 _ =
-    Shared.sha256Body ReceivedBodySHA256
 
 subscriptionEncryptFile: Model -> Sub Msg
 subscriptionEncryptFile _ =
