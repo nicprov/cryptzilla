@@ -4,7 +4,7 @@ import Base64
 import Bytes exposing (Bytes)
 import Bytes.Decode as Decode
 import Bytes.Encode as Encode
-import Common.Alert exposing (viewAlertError)
+import Common.Alert exposing (viewAlertError, viewAlertInfo, viewAlertSuccess)
 import Dict exposing (Dict)
 import File exposing (File, name)
 import File.Download as Download
@@ -44,11 +44,18 @@ type alias Model =
     , key: String
     , text: String
     , headers : List ( String, String )
+    , status: Status
     }
+
+type Status
+    = Success String
+    | Loading String
+    | Failure String
+    | None
 
 init : Shared.Model -> (Model, Cmd Msg)
 init shared =
-    (Model "" Nothing "" [] [] "" "" "" []
+    (Model "" Nothing "" [] [] "" "" "" [] (Loading "Loading...")
     , case shared.storage.account of
         Just account ->
             listBucket account
@@ -73,7 +80,6 @@ type Msg
     | ClickedFilePath String
     | ClickedDropdown String
     | ClickedDownload KeyInfoDecrypted
-    | ClickedRename String
     | ClickedDelete String
     | ClickedCopyLink String
     | FileSelected File
@@ -201,7 +207,18 @@ update shared req msg model =
             )
 
         ClickedFilePath dir ->
-            ( model, Cmd.none )
+            case shared.storage.account of
+                Just acc ->
+                    case List.head acc.buckets of
+                        Just bucket ->
+                            if dir == bucket then
+                                ( { model | currentDir = "" }, Cmd.none )
+                            else
+                                (model, Cmd.none)
+                        Nothing ->
+                            (model, Cmd.none)
+                Nothing ->
+                    (model, Cmd.none)
 
         ReceivedDecryptedKeyList keyList ->
             let
@@ -212,6 +229,11 @@ update shared req msg model =
                 | display = "Bucket listing received."
                 , keyList = Just keyList
                 , folderList = uniqueBy (\k -> k.keyDecrypted) folders
+                , status = (if (List.length keyList.keys == 0) then
+                                Failure "No files to show"
+                            else
+                                None
+                            )
               }
             , Cmd.none
             )
@@ -231,23 +253,15 @@ update shared req msg model =
         ClickedDownload key ->
             case shared.storage.account of
                 Just acc ->
-                    ( { model | expandedItem = "", key = key.keyDecrypted }
+                    ( { model | expandedItem = "", key = key.keyDecrypted, status = Loading "Downloading file..." }
                     , getBytesObject acc key.keyEncrypted
-                    )
-                Nothing -> (model, Cmd.none)
-
-        ClickedRename key ->
-            case shared.storage.account of
-                Just acc ->
-                    ( { model | expandedItem = "" }
-                    , Cmd.none
                     )
                 Nothing -> (model, Cmd.none)
 
         ClickedDelete key ->
             case shared.storage.account of
                 Just acc ->
-                    ( { model | expandedItem = "" }
+                    ( { model | expandedItem = "", status = Loading "Deleting file..." }
                     , deleteObject acc key
                     )
                 Nothing -> (model, Cmd.none)
@@ -264,15 +278,15 @@ update shared req msg model =
         ReceiveDeleteObject result ->
             case result of
                 Err err ->
-                    ( { model | display = Debug.toString err }
+                    ( { model | display = Debug.toString err, status = Failure "Unable to delete file" }
                     , Cmd.none
                     )
 
                 Ok res ->
                     case shared.storage.account of
                         Just acc ->
-                            ( { model | display = res, expandedItem = "" }
-                            , listBucket acc -- Should simply update keyList instead, but used for debugging because delete not working
+                            ( { model | display = res, expandedItem = "", status = Success "Successfully deleted object" }
+                            , listBucket acc
                             )
                         Nothing -> (model, Cmd.none)
 
@@ -280,38 +294,40 @@ update shared req msg model =
             let
                 ext = List.head (List.reverse (String.split "." model.key))
             in
+            ( { model | status = None }
+            ,
             case ext of
                 Just e ->
                     if e == "txt" then
                         case Base64.toString decryptedFile of
                             Just t ->
-                                ( model, Download.string model.key "text/plain" t)
+                                Download.string model.key "text/plain" t
                             Nothing ->
-                                ( model, Cmd.none) -- TODO show error message
+                                Cmd.none
                     else
                         case Base64.toBytes decryptedFile of
                             Just b ->
-                                ( model, Download.bytes model.key "application/octet-stream" b)
+                                Download.bytes model.key "application/octet-stream" b
                             Nothing ->
-                                ( model, Cmd.none) -- TODO show error message
+                                Cmd.none
 
                 Nothing ->
-                    ( model, Cmd.none) -- TODO show error message
-
+                    Cmd.none
+            )
 
         ReceiveGetObjectBytes result ->
             case result of
                 Err err ->
-                    ( { model | display = Debug.toString err }
+                    ( { model | display = Debug.toString err, status = Failure "Unable to download file..." }
                     , Cmd.none
                     )
 
                 Ok ( res ) ->
                     case Base64.fromBytes res of
                         Just s ->
-                            ( model, decryptFile (FileDescriptionMessage s "" shared.storage.encryptionKey shared.storage.salt))
+                            ( { model | status = Loading "Decrypting file..."}, decryptFile (FileDescriptionMessage s "" shared.storage.encryptionKey shared.storage.salt))
                         Nothing ->
-                            ( model, Cmd.none) -- TODO show error message
+                            ( { model | status = None }, Cmd.none) -- TODO show error message
 
         ClickedUploadFile ->
             ( model
@@ -324,41 +340,40 @@ update shared req msg model =
         FileConvertedToBytes bytes ->
             case Base64.fromBytes bytes of
                 Just b ->
-                    ( model, encryptFile (FileDescriptionMessage b model.key shared.storage.encryptionKey shared.storage.salt))
+                    ( { model | status = Loading "Encrypting file..."}, encryptFile (FileDescriptionMessage b model.key shared.storage.encryptionKey shared.storage.salt))
 
                 Nothing ->
-                    ( model, Cmd.none) -- TODO show error message
+                    ( { model | status = None }, Cmd.none) -- TODO show error message
 
         ReceivedEncryptedFile file ->
             case shared.storage.account of
                 Just acc ->
                     case Base64.toBytes file.encryptedFile of
                         Just b ->
-                            ( { model | key = file.encryptedPath }
+                            ( { model | key = file.encryptedPath, status = Loading "Uploading file..." }
                             , putBytesObject acc b file.encryptedPath file.sha256
-                            --, bodyToSHA256 (FileDescriptionMessage)
                             )
 
                         Nothing ->
-                            ( model, Cmd.none) -- TODO show error message
+                            ( { model | status = None }, Cmd.none) -- TODO show error message
 
-                Nothing -> (model, Cmd.none)
+                Nothing -> ( { model | status = None}, Cmd.none)
 
         ReceivePutObjectBytes result ->
             case result of
                 Err err ->
-                    ( { model | display = Debug.toString err }
+                    ( { model | display = Debug.toString err, status = Failure "Unable to upload file" }
                     , Cmd.none
                     )
 
                 Ok ( _ ) ->
                     case shared.storage.account of
                         Just acc ->
-                            ( { model | display = "Success" }
+                            ( { model | status = Success "Successfully uploaded file" }
                             , listBucket acc
                             )
 
-                        Nothing -> (model, Cmd.none)
+                        Nothing -> ( { model | status = None }, Cmd.none)
 
 
 -- Listen for shared model changes
@@ -735,6 +750,16 @@ viewMain model account =
                                         ]
                                     ]
                                 ]
+                            , (case model.status of
+                                Success msg ->
+                                    viewAlertSuccess msg
+                                Loading msg ->
+                                    viewAlertInfo msg
+                                Failure error ->
+                                    viewAlertError error
+                                _ ->
+                                    div [] []
+                            )
                             , div
                                 [ Attr.class "table-wrapper"
                                 ]
@@ -846,7 +871,7 @@ viewMain model account =
                                                         (List.map (viewFileItem model) keyList.keys)
                                                     )
                                                 else
-                                                    [viewAlertError "No files to show"]
+                                                    [div [] []]
                                             Nothing -> []
                                         )
                                     ]
@@ -1038,23 +1063,6 @@ viewDropdown model key =
                             []
                         ]
                     , text " Download" ]
-                , a
-                    [ Attr.attribute "data-v-081c0a81" ""
-                    , Attr.attribute "role" "listitem"
-                    , Attr.tabindex 0
-                    , Attr.class "dropdown-item"
-                    , Attr.href "#"
-                    ]
-                    [ span
-                        [ Attr.attribute "data-v-081c0a81" ""
-                        , Attr.class "icon is-small"
-                        ]
-                        [ i
-                            [ Attr.class "fas fa-file-signature"
-                            ]
-                            []
-                        ]
-                    , text " Rename" ]
                 , a
                     [ Attr.attribute "data-v-081c0a81" ""
                     , Attr.attribute "role" "listitem"
