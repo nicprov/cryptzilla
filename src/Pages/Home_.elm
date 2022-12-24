@@ -35,8 +35,7 @@ page shared req =
         }
 
 type alias Model =
-    { display: String
-    , keyList: Maybe KeyListDecrypted
+    { keyList: Maybe KeyListDecrypted
     , currentDir: String
     , folderList: List(KeyInfoDecrypted)
     , selectedList: List(KeyInfoDecrypted)
@@ -57,7 +56,7 @@ type Status
 
 init : Shared.Model -> (Model, Cmd Msg)
 init shared =
-    (Model "" Nothing "" [] [] "" "" "" [] (Loading "Loading...") False ""
+    (Model Nothing "" [] [] "" "" "" [] (Loading "Loading...") False ""
     , case shared.storage.account of
         Just account ->
             listBucket account
@@ -196,7 +195,7 @@ update shared req msg model =
         ListBucket ->
             case shared.storage.account of
                 Just acc ->
-                    ( { model | display = "Getting bucket listing..." }
+                    ( { model | status = Loading "Getting bucket listing..." }
                     , listBucket acc
                     )
                 Nothing -> (model, Cmd.none)
@@ -204,7 +203,7 @@ update shared req msg model =
         ReceiveListBucket result ->
             case result of
                 Err err ->
-                    ( { model | display = Debug.toString err }
+                    ( { model | status = Failure (Debug.toString err) }
                     , Cmd.none
                     )
 
@@ -249,8 +248,7 @@ update shared req msg model =
                     folders = List.filter isFolder reducedFolder
                 in
                 ( { model
-                    | display = "Bucket listing received."
-                    , keyList = Just keyList
+                    | keyList = Just keyList
                     , folderList = uniqueBy (\k -> k.keyDecrypted) folders
                     , status = (if (List.length keyList.keys == 0) then
                                     Failure "No files to show"
@@ -303,14 +301,14 @@ update shared req msg model =
         ReceiveDeleteObject result ->
             case result of
                 Err err ->
-                    ( { model | display = Debug.toString err, status = Failure "Unable to delete file" }
+                    ( { model | status = Failure ("Unable to delete file: " ++ (Debug.toString err)) }
                     , Cmd.none
                     )
 
                 Ok res ->
                     case shared.storage.account of
                         Just acc ->
-                            ( { model | display = res, expandedItem = "", status = Success "Successfully deleted object" }
+                            ( { model | expandedItem = "", status = Success "Successfully deleted object" }
                             , listBucket acc
                             )
                         Nothing -> (model, Cmd.none)
@@ -343,7 +341,7 @@ update shared req msg model =
         ReceiveGetObjectBytes result ->
             case result of
                 Err err ->
-                    ( { model | display = Debug.toString err, status = Failure "Unable to download file..." }
+                    ( { model | status = Failure ("Unable to download file: " ++ (Debug.toString err)) }
                     , Cmd.none
                     )
 
@@ -387,7 +385,7 @@ update shared req msg model =
         ReceivePutObjectBytes result ->
             case result of
                 Err err ->
-                    ( { model | display = Debug.toString err, status = Failure "Unable to upload file" }
+                    ( { model | status = Failure ("Unable to upload file: " ++ (Debug.toString err)) }
                     , Cmd.none
                     )
 
@@ -420,7 +418,7 @@ update shared req msg model =
         ReceivedPutFolder result ->
             case result of
                 Err err ->
-                    ( { model | display = Debug.toString err, status = Failure "Unable to create folder" }
+                    ( { model | status = Failure ("Unable to create folder: " ++ (Debug.toString err)) }
                     , Cmd.none
                     )
 
