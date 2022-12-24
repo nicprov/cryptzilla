@@ -35,12 +35,12 @@ app.ports.decryptKeyList.subscribe(function(message) {
 app.ports.decryptFile.subscribe(function(message) {
     generateKey(message["key"], message["salt"], (error, key) => {
         if (error != null)
-            app.ports.decryptedFile.send("", error);
+            app.ports.decryptedFile.send(["", error.toString()]);
         else {
             var keyBase64 = nacl.util.encodeBase64(key);
             var messageBase64 = message["file"];
             const d = decrypt(keyBase64, messageBase64)
-            app.ports.decryptedFile.send(d, "");
+            app.ports.decryptedFile.send([d, ""]);
         }
     });
 })
@@ -68,9 +68,9 @@ app.ports.encryptFileName.subscribe(function(message) {
         password: message["key"],
         salt: message["salt"]
     }).then(rclone => {
-        app.ports.encryptedFileName.send(rclone.Path.encrypt(message["name"]), "");
+        app.ports.encryptedFileName.send([rclone.Path.encrypt(message["name"]), ""]);
     }).catch(error => {
-        app.ports.encryptedFileName.send("", error.toString());
+        app.ports.encryptedFileName.send(["", error.toString()]);
     })
 })
 
