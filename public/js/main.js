@@ -19,20 +19,29 @@ app.ports.decryptKeyList.subscribe(function(message) {
             key["keyDecrypted"] = rclone.Path.decrypt(key.key);
             delete key.key
         });
+        keyList.error = "";
         app.ports.decryptedKeyList.send(keyList);
     }).catch(error => {
-        console.log(error);
+        keyList.keys.forEach(function(key){
+            key["keyEncrypted"] = ""
+            key["keyDecrypted"] = "";
+            delete key.key
+        });
+        keyList.error = error.toString();
+        app.ports.decryptedKeyList.send(keyList);
     })
 })
 
 app.ports.decryptFile.subscribe(function(message) {
     generateKey(message["key"], message["salt"], (error, key) => {
         if (error != null)
-            throw new Error("Unable to generate key");
-        var keyBase64 = nacl.util.encodeBase64(key);
-        var messageBase64 = message["file"];
-        const d = decrypt(keyBase64, messageBase64)
-        app.ports.decryptedFile.send(d);
+            app.ports.decryptedFile.send("", error);
+        else {
+            var keyBase64 = nacl.util.encodeBase64(key);
+            var messageBase64 = message["file"];
+            const d = decrypt(keyBase64, messageBase64)
+            app.ports.decryptedFile.send(d, "");
+        }
     });
 })
 
@@ -47,10 +56,10 @@ app.ports.encryptFile.subscribe(function(message) {
             var keyBase64 = nacl.util.encodeBase64(key);
             var messageBase64 = message["file"];
             const e = encrypt(keyBase64, messageBase64)
-            app.ports.encryptedFile.send({encryptedFile:e, encryptedPath: rclone.Path.encrypt(message["name"]), sha256: CryptoJS.SHA256(nacl.util.decodeBase64(e)).toString()});
+            app.ports.encryptedFile.send({encryptedFile:e, encryptedPath: rclone.Path.encrypt(message["name"]), sha256: CryptoJS.SHA256(nacl.util.decodeBase64(e)).toString(), error: ""});
         });
     }).catch(error => {
-        console.log(error);
+        app.ports.encryptedFile.send({encryptedFile:"", encryptedPath: "", sha256: "", error: error.toString()});
     })
 })
 
@@ -59,9 +68,9 @@ app.ports.encryptFileName.subscribe(function(message) {
         password: message["key"],
         salt: message["salt"]
     }).then(rclone => {
-        app.ports.encryptedFileName.send(rclone.Path.encrypt(message["name"]));
+        app.ports.encryptedFileName.send(rclone.Path.encrypt(message["name"]), "");
     }).catch(error => {
-        console.log(error);
+        app.ports.encryptedFileName.send("", error.toString());
     })
 })
 

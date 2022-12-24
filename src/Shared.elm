@@ -68,12 +68,14 @@ type alias KeyListDecrypted =
     , maxKeys : Int
     , isTruncated : Bool
     , keys : List KeyInfoDecrypted
+    , error: String
     }
 
 type alias EncryptedFile =
     { encryptedFile: String
     , encryptedPath: String
     , sha256: String
+    , error: String
     }
 
 type Msg
@@ -83,13 +85,13 @@ type Msg
 
 -- Ports
 port encryptFileName: FileDescriptionMessage -> Cmd msg
-port encryptedFileName: (String -> msg) -> Sub msg
+port encryptedFileName: ((String, String) -> msg) -> Sub msg
 
 port encryptFile: FileDescriptionMessage -> Cmd msg
 port encryptedFile: (EncryptedFile -> msg) -> Sub msg
 
 port decryptFile: FileDescriptionMessage -> Cmd msg
-port decryptedFile: (String -> msg) -> Sub msg
+port decryptedFile: ((String, String) -> msg) -> Sub msg
 
 port decryptKeyList: KeyListDescriptionMessage -> Cmd msg
 port decryptedKeyList: (KeyListDecrypted -> msg) -> Sub msg

@@ -92,9 +92,9 @@ type Msg
     | ChangedFolderName String
     | FileSelected File
     | ReceivedDecryptedKeyList KeyListDecrypted
-    | ReceivedDecryptedFile String
+    | ReceivedDecryptedFile (String, String)
     | ReceivedEncryptedFile EncryptedFile
-    | ReceivedEncryptedFileName String
+    | ReceivedEncryptedFileName (String, String)
 
 listBucket : S3.Types.Account -> Cmd Msg
 listBucket account =
@@ -243,22 +243,25 @@ update shared req msg model =
                     (model, Cmd.none)
 
         ReceivedDecryptedKeyList keyList ->
-            let
-                reducedFolder = List.map removeFiles keyList.keys
-                folders = List.filter isFolder reducedFolder
-            in
-            ( { model
-                | display = "Bucket listing received."
-                , keyList = Just keyList
-                , folderList = uniqueBy (\k -> k.keyDecrypted) folders
-                , status = (if (List.length keyList.keys == 0) then
-                                Failure "No files to show"
-                            else
-                                None
-                            )
-              }
-            , Cmd.none
-            )
+            if keyList.error == "" then -- No error
+                let
+                    reducedFolder = List.map removeFiles keyList.keys
+                    folders = List.filter isFolder reducedFolder
+                in
+                ( { model
+                    | display = "Bucket listing received."
+                    , keyList = Just keyList
+                    , folderList = uniqueBy (\k -> k.keyDecrypted) folders
+                    , status = (if (List.length keyList.keys == 0) then
+                                    Failure "No files to show"
+                                else
+                                    None
+                                )
+                  }
+                , Cmd.none
+                )
+            else
+                ( { model | status = Failure keyList.error }, Cmd.none)
 
         ClickedSelected keyInfo ->
             if List.member keyInfo model.selectedList then
@@ -316,26 +319,26 @@ update shared req msg model =
             let
                 ext = List.head (List.reverse (String.split "." model.key))
             in
-            ( { model | status = None }
-            ,
-            case ext of
-                Just e ->
-                    if e == "txt" then
-                        case Base64.toString decryptedFile of
-                            Just t ->
-                                Download.string model.key "text/plain" t
-                            Nothing ->
-                                Cmd.none
-                    else
-                        case Base64.toBytes decryptedFile of
-                            Just b ->
-                                Download.bytes model.key "application/octet-stream" b
-                            Nothing ->
-                                Cmd.none
+            if (Tuple.second decryptedFile) == "" then -- No errors
+                case ext of
+                    Just e ->
+                        if e == "txt" then
+                            case Base64.toString (Tuple.first decryptedFile) of
+                                Just t ->
+                                    ( { model | status = None }, Download.string model.key "text/plain" t)
+                                Nothing ->
+                                    ( { model | status = None }, Cmd.none)
+                        else
+                            case Base64.toBytes (Tuple.first decryptedFile) of
+                                Just b ->
+                                    ( { model | status = None }, Download.bytes model.key "application/octet-stream" b)
+                                Nothing ->
+                                    ( { model | status = None }, Cmd.none)
 
-                Nothing ->
-                    Cmd.none
-            )
+                    Nothing ->
+                        ( { model | status = None }, Cmd.none)
+            else -- There's an error
+                ( { model | status = Failure (Tuple.second decryptedFile)}, Cmd.none)
 
         ReceiveGetObjectBytes result ->
             case result of
@@ -402,14 +405,17 @@ update shared req msg model =
             , Cmd.none
             )
 
-        ReceivedEncryptedFileName encryptedFolder ->
-            case shared.storage.account of
-                Just acc ->
-                    ( { model | expandedItem = "", status = Loading "Encrypting folder name..." }
-                    , putFolder acc encryptedFolder
-                    )
+        ReceivedEncryptedFileName encryptedFileName ->
+            if (Tuple.second encryptedFileName) == "" then -- No error
+                case shared.storage.account of
+                    Just acc ->
+                        ( { model | expandedItem = "", status = Loading "Encrypting folder name..." }
+                        , putFolder acc (Tuple.first encryptedFileName)
+                        )
 
-                Nothing -> (model, Cmd.none)
+                    Nothing -> (model, Cmd.none)
+            else
+                ( { model | status = Failure (Tuple.second encryptedFileName) }, Cmd.none)
 
         ReceivedPutFolder result ->
             case result of
