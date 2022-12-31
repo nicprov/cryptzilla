@@ -1340,10 +1340,9 @@ viewFolder shared model key =
         [ Attr.attribute "data-v-081c0a81" ""
         , Attr.class ""
         , Attr.id "single-actions"
+        , Attr.disabled True
         ]
-        [ span []
-            (viewDropdown shared model key)
-        ]
+        []
     ]
 
 viewBack: Model -> List (Html Msg)
