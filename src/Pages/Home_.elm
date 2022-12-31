@@ -82,6 +82,7 @@ type Msg
     | ClickedNewFolder
     | ClickedCancelFolderModal
     | ClickedCreateFolder
+    | ClickedDeleteSelected
     | ClickedSelected KeyInfoDecrypted
     | ClickedFilePath String
     | ClickedDropdown String
@@ -104,7 +105,6 @@ listBucket account =
             )
     in
     S3.listKeys bucket
-        |> S3.addQuery [ MaxKeys 100 ]
         |> S3.send account
         |> Task.attempt ReceiveListBucket
 
@@ -453,6 +453,17 @@ update shared req msg model =
                     )
                 Nothing -> (model, Cmd.none)
 
+        ClickedDeleteSelected ->
+            let
+                listDeleteCmd = List.map (\k -> case shared.storage.account of
+                                                  Just acc -> deleteObject acc k.keyEncrypted
+                                                  Nothing -> Cmd.none
+                                         ) model.selectedList
+            in
+            ( { model | selectedList = [] }
+            , Cmd.batch listDeleteCmd
+            )
+
 -- Listen for shared model changes
 subscriptions: Model -> Sub Msg
 subscriptions model =
@@ -728,6 +739,7 @@ viewMain model account =
                                             ]
                                         ]
                                     ]
+                                , viewSelectedDelete model
                                 ]
                             , div
                                 [ Attr.attribute "data-v-081c0a81" ""
@@ -843,6 +855,7 @@ viewMain model account =
                                                         [ Attr.type_ "checkbox"
                                                         , Attr.attribute "true-value" "true"
                                                         , Attr.value "false"
+                                                        , Attr.disabled True
                                                         ]
                                                         []
                                                     , span
@@ -856,7 +869,7 @@ viewMain model account =
                                                     ]
                                                 ]
                                             , th
-                                                [ Attr.class "is-current-sort is-sortable"
+                                                [ Attr.class "is-sortable"
                                                 ]
                                                 [ div
                                                     [ Attr.class "th-wrap"
@@ -864,11 +877,7 @@ viewMain model account =
                                                     [ text "Name", span
                                                         [ Attr.class "icon is-small"
                                                         ]
-                                                        [ i
-                                                            [ Attr.class "fas fa-arrow-up"
-                                                            ]
-                                                            []
-                                                        ]
+                                                        []
                                                     ]
                                                 ]
                                             , th
@@ -1077,6 +1086,7 @@ viewFile model key =
                     [ Attr.type_ "checkbox"
                     , Attr.attribute "true-value" "true"
                     , Attr.value "false"
+                    , Attr.href "#"
                     , onClick (ClickedSelected key)
                     ]
                     []
@@ -1214,23 +1224,23 @@ viewDropdown model key =
                             []
                         ]
                     , text " Delete" ]
-                , a
-                    [ Attr.attribute "data-v-081c0a81" ""
-                    , Attr.attribute "role" "listitem"
-                    , Attr.tabindex 0
-                    , Attr.class "dropdown-item"
-                    , Attr.href "#"
-                    ]
-                    [ span
-                        [ Attr.attribute "data-v-081c0a81" ""
-                        , Attr.class "icon is-small"
-                        ]
-                        [ i
-                            [ Attr.class "fas fa-clipboard"
-                            ]
-                            []
-                        ]
-                    , text " Copy link" ]
+                --, a
+                --    [ Attr.attribute "data-v-081c0a81" ""
+                --    , Attr.attribute "role" "listitem"
+                --    , Attr.tabindex 0
+                --    , Attr.class "dropdown-item"
+                --    , Attr.href "#"
+                --    ]
+                --    [ span
+                --        [ Attr.attribute "data-v-081c0a81" ""
+                --        , Attr.class "icon is-small"
+                --        ]
+                --        [ i
+                --            [ Attr.class "fas fa-clipboard"
+                --            ]
+                --            []
+                --        ]
+                --    , text " Copy link" ]
                 ]
             ]
         ]
@@ -1269,6 +1279,7 @@ viewFolder model key =
                 [ Attr.type_ "checkbox"
                 , Attr.attribute "true-value" "true"
                 , Attr.value "false"
+                , Attr.disabled True
                 ]
                 []
             , span
@@ -1396,3 +1407,41 @@ viewBack model =
                 ]
             ]
         ]
+
+viewSelectedDelete: Model -> Html Msg
+viewSelectedDelete model =
+    if List.length model.selectedList > 0 then
+        a
+            [ Attr.attribute "data-v-081c0a81" ""
+            , Attr.class "add-new is-inline-block"
+            , Attr.href "#"
+            ]
+            [ div
+                [ Attr.attribute "data-v-081c0a81" ""
+                , Attr.class "dropdown is-mobile-modal"
+                ]
+                [ div
+                    [ Attr.attribute "role" "button"
+                    , Attr.attribute "aria-haspopup" "true"
+                    , Attr.class "dropdown-trigger"
+                    ]
+                    [ span
+                        [ Attr.attribute "data-v-081c0a81" ""
+                        , Attr.href "#"
+                        , onClick ClickedDeleteSelected
+                        ]
+                        [ span
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.class "icon is-small"
+                            ]
+                            [ i
+                                [ Attr.class "fas fa-trash-alt"
+                                ]
+                                []
+                            ]
+                        , text " Delete Selected" ]
+                    ]
+               ]
+            ]
+    else
+        div [] []
