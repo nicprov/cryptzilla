@@ -10,7 +10,7 @@ import File exposing (File, name)
 import File.Download as Download
 import File.Select as Select
 import Gen.Route
-import Html exposing (Html, a, button, div, footer, hr, i, img, input, label, li, nav, ol, option, p, section, select, span, table, tbody, td, text, th, thead, tr, ul)
+import Html exposing (Html, a, button, div, footer, hr, i, img, input, label, li, nav, node, ol, option, p, section, select, span, table, tbody, td, text, th, thead, tr, ul)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick, onInput)
 import List exposing (head)
@@ -83,12 +83,12 @@ type Msg
     | ClickedCancelFolderModal
     | ClickedCreateFolder
     | ClickedDeleteSelected
+    | ClickedCopyURL
     | ClickedSelected KeyInfoDecrypted
     | ClickedFilePath String
     | ClickedDropdown String
     | ClickedDownload KeyInfoDecrypted
     | ClickedDelete String
-    | ClickedCopyLink String
     | ChangedFolderName String
     | FileSelected File
     | ReceivedDecryptedKeyList KeyListDecrypted
@@ -290,14 +290,6 @@ update shared req msg model =
                 Nothing -> (model, Cmd.none)
 
 
-        ClickedCopyLink key ->
-            case shared.storage.account of
-                Just acc ->
-                    ( { model | expandedItem = "" }
-                    , Cmd.none
-                    )
-                Nothing -> (model, Cmd.none)
-
         ReceiveDeleteObject result ->
             case result of
                 Err err ->
@@ -464,6 +456,9 @@ update shared req msg model =
             , Cmd.batch listDeleteCmd
             )
 
+        ClickedCopyURL ->
+            ( { model | status = Success "Copied URL", expandedItem = "" }, Cmd.none )
+
 -- Listen for shared model changes
 subscriptions: Model -> Sub Msg
 subscriptions model =
@@ -491,12 +486,12 @@ subscriptionKeyList _ =
 view : Shared.Model -> Model -> View Msg
 view shared model =
     { title = "File Manager"
-    , body = [ viewMain model shared.storage.account
+    , body = [ viewMain shared model shared.storage.account
              ]
     }
 
-viewMain: Model -> Maybe S3.Types.Account-> Html Msg
-viewMain model account =
+viewMain: Shared.Model -> Model -> Maybe S3.Types.Account-> Html Msg
+viewMain shared model account =
     div
         [ Attr.id "wrapper"
         ]
@@ -941,8 +936,8 @@ viewMain model account =
                                             Just keyList ->
                                                 if List.length keyList.keys /= 0 then
                                                     (List.append
-                                                        (List.append (viewBack model) (List.map (viewFolderItem model) model.folderList))
-                                                        (List.map (viewFileItem model) keyList.keys)
+                                                        (List.append (viewBack model) (List.map (viewFolderItem shared model) model.folderList))
+                                                        (List.map (viewFileItem shared model) keyList.keys)
                                                     )
                                                 else
                                                     [div [] []]
@@ -1053,22 +1048,22 @@ viewFilePath dir =
     ]
 
 
-viewFileItem: Model -> KeyInfoDecrypted -> Html Msg
-viewFileItem model key =
+viewFileItem: Shared.Model -> Model -> KeyInfoDecrypted -> Html Msg
+viewFileItem shared model key =
     if String.contains model.currentDir key.keyDecrypted then
         let
             name = String.replace model.currentDir "" key.keyDecrypted
             file = String.split "/" name
         in
         if name /= "" && (List.length file) == 1 then
-            viewFile model key
+            viewFile shared model key
         else
             div [] []
     else
         div [] []
 
-viewFile: Model -> KeyInfoDecrypted -> Html Msg
-viewFile model key =
+viewFile: Shared.Model -> Model -> KeyInfoDecrypted -> Html Msg
+viewFile shared model key =
     let
         name = String.replace model.currentDir "" key.keyDecrypted
     in
@@ -1136,12 +1131,12 @@ viewFile model key =
             , Attr.id "single-actions"
             ]
             [ span []
-                (viewDropdown model key)
+                (viewDropdown shared model key)
             ]
         ]
 
-viewDropdown: Model -> KeyInfoDecrypted -> List (Html Msg)
-viewDropdown model key =
+viewDropdown: Shared.Model -> Model -> KeyInfoDecrypted -> List (Html Msg)
+viewDropdown shared model key =
     [ div
         [ Attr.attribute "data-v-081c0a81" ""
         , if key.keyDecrypted == model.expandedItem then
@@ -1224,44 +1219,62 @@ viewDropdown model key =
                             []
                         ]
                     , text " Delete" ]
-                --, a
-                --    [ Attr.attribute "data-v-081c0a81" ""
-                --    , Attr.attribute "role" "listitem"
-                --    , Attr.tabindex 0
-                --    , Attr.class "dropdown-item"
-                --    , Attr.href "#"
-                --    ]
-                --    [ span
-                --        [ Attr.attribute "data-v-081c0a81" ""
-                --        , Attr.class "icon is-small"
-                --        ]
-                --        [ i
-                --            [ Attr.class "fas fa-clipboard"
-                --            ]
-                --            []
-                --        ]
-                --    , text " Copy link" ]
+                , a [ Attr.attribute "data-v-081c0a81" ""
+                    , Attr.attribute "role" "listitem"
+                    , Attr.tabindex 0
+                    , Attr.class "dropdown-item"
+                    , Attr.href "#"
+                    , onClick ClickedCopyURL
+                    ]
+                    [ node "clipboard-copy"
+                        [ (case shared.storage.account of
+                             Just acc ->
+                                 case (List.head acc.buckets) of
+                                     Just bucket ->
+                                         case acc.region of
+                                             Just region ->
+                                                     Attr.value ("https://" ++ bucket ++ "." ++ region ++ "digitaloceanspaces.com/" ++ key.keyEncrypted) -- https://test-onintime.nyc3.digitaloceanspaces.com/
+                                             Nothing ->
+                                                 Attr.value ""
+                                     Nothing ->
+                                         Attr.value ""
+                             Nothing ->
+                                 Attr.value ""
+
+                         )
+                        ]
+                        [ span
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.class "icon is-small"
+                            ]
+                            [ i
+                                [ Attr.class "fas fa-clipboard"
+                                ]
+                                []
+                            ]
+                        , text " Copy link" ]
+                    ]
                 ]
             ]
         ]
     ]
 
-viewFolderItem: Model -> KeyInfoDecrypted -> Html Msg
-viewFolderItem model key =
+viewFolderItem: Shared.Model -> Model -> KeyInfoDecrypted -> Html Msg
+viewFolderItem shared model key =
     if String.contains model.currentDir key.keyDecrypted then
         let
             tempFolder = String.replace model.currentDir "" key.keyDecrypted
         in
 
         if model.currentDir /= key.keyDecrypted && (List.length (String.split "/" tempFolder)) == 2 then
-            viewFolder model key
+            viewFolder shared model key
         else
             div [] []
     else
         div [] []
 
-viewFolder: Model -> KeyInfoDecrypted -> Html Msg
-viewFolder model key =
+viewFolder: Shared.Model -> Model -> KeyInfoDecrypted -> Html Msg
+viewFolder shared model key =
     let
         name = String.replace model.currentDir "" key.keyDecrypted
     in
@@ -1329,7 +1342,7 @@ viewFolder model key =
         , Attr.id "single-actions"
         ]
         [ span []
-            (viewDropdown model key)
+            (viewDropdown shared model key)
         ]
     ]
 
