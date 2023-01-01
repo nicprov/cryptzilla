@@ -1,4 +1,4 @@
-module Pages.Login exposing (Model, Msg, page)
+module Pages.Settings exposing (Model, Msg, page)
 
 import Common.Alert exposing (viewAlertError)
 import Gen.Route
@@ -18,7 +18,7 @@ import Random exposing (Seed, initialSeed)
 page : Shared.Model -> Request -> Page.With Model Msg
 page shared req =
     Page.element
-        { init = init
+        { init = init shared
         , update = update shared req
         , view = view shared
         , subscriptions = \_ -> Sub.none
@@ -40,9 +40,45 @@ type alias Model =
     , encryptionKeyHidden: Bool
     }
 
-init : (Model, Cmd Msg)
-init =
-    (Model (S3.Types.Account "S3" (Just "") False "" "" []) None "" "" "" True True True True, Cmd.none)
+init : Shared.Model -> (Model, Cmd Msg)
+init shared =
+    case shared.storage.account of
+        Just acc ->
+            ( { account = { name = "S3"
+                          , region = acc.region
+                          , isDigitalOcean = acc.isDigitalOcean
+                          , accessKey = acc.accessKey
+                          , secretKey = acc.secretKey
+                          , buckets = acc.buckets
+                          }
+              , status = None
+              , rclonePassword = shared.storage.password
+              , rcloneSalt = shared.storage.salt
+              , encryptionKey = shared.storage.encryptionKey
+              , secretKeyHidden = True
+              , rclonePasswordHidden = True
+              , rcloneSaltHidden = True
+              , encryptionKeyHidden = True
+              }
+            , Cmd.none )
+        Nothing ->
+            ( { account = { name = ""
+                          , region = Just ""
+                          , isDigitalOcean = False
+                          , accessKey = ""
+                          , secretKey = ""
+                          , buckets = [""]
+                          }
+              , status = None
+              , rclonePassword = ""
+              , rcloneSalt = ""
+              , encryptionKey = ""
+              , secretKeyHidden = True
+              , rclonePasswordHidden = True
+              , rcloneSaltHidden = True
+              , encryptionKeyHidden = True
+              }
+            , Cmd.none )
 
 -- Update
 
@@ -55,11 +91,12 @@ type Msg
     | ChangeRclonePassword String
     | ChangeRcloneSalt String
     | ChangeEncryptionKey String
-    | ClickedSignIn
+    | ClickedSave
     | ClickedHideSecretKey
     | ClickedHideEncryptionKey
     | ClickedHideRcloneSalt
     | ClickedHideRclonePassword
+    | ClickedHome
 
 stringFromBool : Bool -> String
 stringFromBool value =
@@ -122,7 +159,7 @@ update shared req msg model =
         ChangeEncryptionKey key ->
             ( { model | encryptionKey = key }, Cmd.none)
 
-        ClickedSignIn ->
+        ClickedSave ->
             if model.account.accessKey == "" then
                 ( { model | status = Error "Access Key cannot be empty"}, Cmd.none)
             else if model.account.secretKey == "" then
@@ -163,12 +200,15 @@ update shared req msg model =
             else
                 ( { model | rcloneSaltHidden = True }, Cmd.none)
 
+        ClickedHome ->
+            ( model, Request.replaceRoute Gen.Route.Home_ req )
+
 
 -- View
 
 view : Shared.Model -> Model -> View Msg
 view _ model =
-    { title = "Login"
+    { title = "Settings"
     , body = [ viewMain model
              ]
     }
@@ -203,12 +243,16 @@ viewMain model =
                                 [ Attr.attribute "data-v" ""
                                 , Attr.class "has-text-centered"
                                 ]
-                                [ img
-                                    [ Attr.attribute "data-v" ""
-                                    , Attr.src "/img/logo.png"
-                                    , Attr.class "logo"
+                                [ a [ Attr.href "#"
                                     ]
-                                    []
+                                    [ img
+                                        [ Attr.attribute "data-v" ""
+                                        , Attr.src "/img/logo.png"
+                                        , Attr.class "logo"
+                                        , onClick ClickedHome
+                                        ]
+                                        []
+                                    ]
                                 ]
                             , br
                                 [ Attr.attribute "data-v" ""
@@ -484,9 +528,9 @@ viewMain model =
                                 [ button
                                     [ Attr.attribute "data-v" ""
                                     , Attr.class "button is-primary"
-                                    , onClick ClickedSignIn
+                                    , onClick ClickedSave
                                     ]
-                                    [ text "Log in" ]
+                                    [ text "Save" ]
                                 ]
                             ]
                         ]

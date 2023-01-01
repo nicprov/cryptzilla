@@ -209,7 +209,7 @@ update shared req msg model =
                     )
 
                 Ok keys ->
-                    ( model, decryptKeyList (KeyListDescriptionMessage keys shared.storage.encryptionKey shared.storage.salt))
+                    ( model, decryptKeyList (KeyListDescriptionMessage keys shared.storage.password shared.storage.salt))
 
         ClickedFolder folder ->
             ( { model | currentDir = folder, expandedItem = "" }, Cmd.none)
@@ -341,7 +341,7 @@ update shared req msg model =
                 Ok ( res ) ->
                     case Base64.fromBytes res of
                         Just s ->
-                            ( { model | status = Loading "Decrypting file..."}, decryptFile (FileDescriptionMessage s "" shared.storage.encryptionKey shared.storage.salt))
+                            ( { model | status = Loading "Decrypting file..."}, decryptFile (FileDescriptionMessage s "" shared.storage.password shared.storage.salt))
                         Nothing ->
                             ( { model | status = None }, Cmd.none) -- TODO show error message
 
@@ -356,7 +356,7 @@ update shared req msg model =
         FileConvertedToBytes bytes ->
             case Base64.fromBytes bytes of
                 Just b ->
-                    ( { model | status = Loading "Encrypting file..."}, encryptFile (FileDescriptionMessage b model.key shared.storage.encryptionKey shared.storage.salt))
+                    ( { model | status = Loading "Encrypting file..."}, encryptFile (FileDescriptionMessage b model.key shared.storage.password shared.storage.salt))
 
                 Nothing ->
                     ( { model | status = None }, Cmd.none) -- TODO show error message
@@ -430,7 +430,7 @@ update shared req msg model =
         ClickedCreateFolder ->
             if model.folderName /= "" then
                 ( { model | folderModal = False, status = Loading "Creating folder..." }
-                , encryptFileName (FileDescriptionMessage "" (model.currentDir ++ model.folderName ++ "/") shared.storage.encryptionKey shared.storage.salt)
+                , encryptFileName (FileDescriptionMessage "" (model.currentDir ++ model.folderName ++ "/") shared.storage.password shared.storage.salt)
                 )
             else
                 ( { model | status = Failure "Folder name cannot be empty" }, Cmd.none)
@@ -461,10 +461,7 @@ update shared req msg model =
             ( { model | status = Success "Copied URL", expandedItem = "" }, Cmd.none )
 
         ClickedSettings ->
-            ( model, Cmd.batch [ Storage.signOut shared.storage
-                               , Request.replaceRoute Gen.Route.Settings req
-                               ]
-            )
+            ( model, Request.replaceRoute Gen.Route.Settings req )
 
 -- Listen for shared model changes
 subscriptions: Model -> Sub Msg

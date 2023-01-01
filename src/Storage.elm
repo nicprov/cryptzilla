@@ -10,7 +10,7 @@ port module Storage exposing
     )
 
 import Json.Decode as Decode exposing (Decoder, decodeValue, field, int, map, map2, nullable, string)
-import Json.Decode.Pipeline exposing (optional, required)
+import Json.Decode.Pipeline exposing (hardcoded, optional, required)
 import Json.Encode as Encode exposing (Value, encode, list, string)
 import S3 as S3
 import S3.Types
@@ -21,8 +21,9 @@ import List exposing (concatMap)
 
 type alias Storage =
     { account: Maybe S3.Types.Account
-    , encryptionKey: String
+    , password: String
     , salt: String
+    , encryptionKey: String
     }
 
 -- Ports
@@ -39,8 +40,8 @@ storageToJson storage =
         Just account ->
             Encode.object
                 [ ("account", S3.encodeAccount account)
-                , ("encryptionKey", Encode.string storage.encryptionKey)
-                , ("salt", Encode.string storage.salt)
+                , ("rclonePassword", Encode.string storage.password)
+                , ("rcloneSalt", Encode.string storage.salt)
                 ]
         Nothing ->
             Encode.object []
@@ -60,20 +61,21 @@ storageDecoder: Decoder Storage
 storageDecoder =
     Decode.succeed Storage
         |> required "account" (nullable S3.accountDecoder)
-        |> required "encryptionKey" Decode.string
-        |> required "salt" Decode.string
+        |> required "rclonePassword" Decode.string
+        |> required "rcloneSalt" Decode.string
+        |> hardcoded ""
 
 -- Auth
 
-signIn: S3.Types.Account -> String -> String -> Storage -> Cmd msg
-signIn account key salt storage =
-    { storage | account = Just account, encryptionKey = key, salt = salt }
+signIn: S3.Types.Account -> String -> String -> String -> Storage -> Cmd msg
+signIn account password salt encryptionKey storage =
+    { storage | account = Just account, password = password, salt = salt, encryptionKey = encryptionKey }
         |> storageToJson
         |> save
 
 signOut: Storage -> Cmd msg
 signOut storage =
-    { storage | account = Nothing, encryptionKey = "", salt = ""}
+    { storage | account = Nothing, password = "", salt = ""}
         |> storageToJson
         |> save
 
@@ -83,8 +85,9 @@ signOut storage =
 init: Storage
 init =
     { account = Nothing
-    , encryptionKey = ""
+    , password = ""
     , salt = ""
+    , encryptionKey = ""
     }
 
 -- Listen for storage updates
