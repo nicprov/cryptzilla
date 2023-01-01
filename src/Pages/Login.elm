@@ -32,11 +32,14 @@ type alias Model =
     , status: Status
     , encryptionKey: String
     , salt: String
+    , secretKeyHidden: Bool
+    , encryptionKeyHidden: Bool
+    , saltHidden: Bool
     }
 
 init : (Model, Cmd Msg)
 init =
-    (Model (S3.Types.Account "S3" (Just "") False "" "" []) None "" "", Cmd.none)
+    (Model (S3.Types.Account "S3" (Just "") False "" "" []) None "" "" True True True, Cmd.none)
 
 -- Update
 
@@ -49,6 +52,9 @@ type Msg
     | ChangeEncryptionKey String
     | ChangedSalt String
     | ClickedSignIn
+    | ClickedHideSecretKey
+    | ClickedHideEncryptionKey
+    | ClickedHideSalt
 
 stringFromBool : Bool -> String
 stringFromBool value =
@@ -126,6 +132,24 @@ update shared req msg model =
                                   , Request.replaceRoute Gen.Route.Home_ req
                                   ]
                 )
+
+        ClickedHideSecretKey ->
+            if model.secretKeyHidden then
+                ( { model | secretKeyHidden = False }, Cmd.none)
+            else
+                ( { model | secretKeyHidden = True }, Cmd.none)
+
+        ClickedHideEncryptionKey ->
+            if model.encryptionKeyHidden then
+                ( { model | encryptionKeyHidden = False }, Cmd.none)
+            else
+                ( { model | encryptionKeyHidden = True }, Cmd.none)
+
+        ClickedHideSalt ->
+            if model.saltHidden then
+                ( { model | saltHidden = False }, Cmd.none)
+            else
+                ( { model | saltHidden = True }, Cmd.none)
 
 -- View
 
@@ -296,7 +320,10 @@ viewMain model =
                                     , Attr.class "control has-icons-right is-clearfix"
                                     ]
                                     [ input
-                                        [ Attr.type_ "password"
+                                        [ if model.secretKeyHidden then
+                                            Attr.type_ "password"
+                                          else
+                                            Attr.type_ "text"
                                         , Attr.class "input"
                                         , Attr.value model.account.secretKey
                                         , onInput ChangeSecretKey
@@ -305,9 +332,13 @@ viewMain model =
                                     ,
                                     span
                                         [ Attr.class "icon is-right has-text-primary is-clickable"
+                                        , onClick ClickedHideSecretKey
                                         ]
                                         [ i
-                                            [ Attr.class "fas fa-eye fa-lg"
+                                            [ if model.secretKeyHidden then
+                                                Attr.class "fas fa-eye fa-lg"
+                                              else
+                                                Attr.class "fas fa-eye-slash fa-lg"
                                             ]
                                             []
                                         ]
@@ -326,7 +357,10 @@ viewMain model =
                                     , Attr.class "control has-icons-right is-clearfix"
                                     ]
                                     [ input
-                                        [ Attr.type_ "password"
+                                        [ if model.encryptionKeyHidden then
+                                            Attr.type_ "password"
+                                          else
+                                            Attr.type_ "text"
                                         , Attr.class "input"
                                         , Attr.value model.encryptionKey
                                         , onInput ChangeEncryptionKey
@@ -338,9 +372,13 @@ viewMain model =
                                         [ text "Must be the encryption key found in the rclone config file because it is padded" ]
                                     , span
                                         [ Attr.class "icon is-right has-text-primary is-clickable"
+                                        , onClick ClickedHideEncryptionKey
                                         ]
                                         [ i
-                                            [ Attr.class "fas fa-eye fa-lg"
+                                            [if model.encryptionKeyHidden then
+                                                Attr.class "fas fa-eye fa-lg"
+                                              else
+                                                Attr.class "fas fa-eye-slash fa-lg"
                                             ]
                                             []
                                         ]
@@ -359,7 +397,10 @@ viewMain model =
                                     , Attr.class "control has-icons-right is-clearfix"
                                     ]
                                     [ input
-                                        [ Attr.type_ "password"
+                                        [ if model.saltHidden then
+                                            Attr.type_ "password"
+                                          else
+                                            Attr.type_ "text"
                                         , Attr.class "input"
                                         , Attr.value model.salt
                                         , onInput ChangedSalt
@@ -371,9 +412,13 @@ viewMain model =
                                         [ text "Optional (leave blank for empty), but must be the salt found in the rclone config file (named Password2) because it is padded" ]
                                     , span
                                         [ Attr.class "icon is-right has-text-primary is-clickable"
+                                        , onClick ClickedHideSalt
                                         ]
                                         [ i
-                                            [ Attr.class "fas fa-eye fa-lg"
+                                            [ if model.saltHidden then
+                                                Attr.class "fas fa-eye fa-lg"
+                                              else
+                                                Attr.class "fas fa-eye-slash fa-lg"
                                             ]
                                             []
                                         ]

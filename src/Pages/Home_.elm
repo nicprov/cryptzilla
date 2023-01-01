@@ -77,6 +77,7 @@ type Msg
     | ClickedFolder String
     | ClickedBack
     | ClickedLogout
+    | ClickedSettings
     | ClickedUploadFile
     | ClickedRefresh
     | ClickedNewFolder
@@ -459,6 +460,12 @@ update shared req msg model =
         ClickedCopyURL ->
             ( { model | status = Success "Copied URL", expandedItem = "" }, Cmd.none )
 
+        ClickedSettings ->
+            ( model, Cmd.batch [ Storage.signOut shared.storage
+                               , Request.replaceRoute Gen.Route.Settings req
+                               ]
+            )
+
 -- Listen for shared model changes
 subscriptions: Model -> Sub Msg
 subscriptions model =
@@ -570,6 +577,17 @@ viewMain shared model account =
                                     , Attr.style "color" "#253b6e"
                                     , Attr.style "font-weight" "600"
                                     , Attr.class "navbar-item logout"
+                                    , Attr.href "#"
+                                    , onClick ClickedSettings
+                                    ]
+                                    [ text "Settings" ]
+                                , a
+                                    [ Attr.attribute "data-v-cd57c856" ""
+                                    , Attr.style "color" "#253b6e"
+                                    , Attr.style "font-weight" "600"
+                                    , Attr.class "navbar-item logout"
+                                    , Attr.href "#"
+                                    , onClick ClickedLogout
                                     ]
                                     [ text "Log out" ]
                                 ]
