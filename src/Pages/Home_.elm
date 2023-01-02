@@ -693,6 +693,7 @@ viewMain shared model account =
                                     , Attr.class "search-btn"
                                     , Attr.placeholder "search"
                                     , Attr.href "#"
+                                    , Attr.style "margin-right" "0px"
                                     , Attr.value model.search
                                     , onInput ChangedSearch
                                     ] []
