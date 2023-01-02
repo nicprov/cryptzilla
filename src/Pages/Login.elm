@@ -1,16 +1,20 @@
 module Pages.Login exposing (Model, Msg, page)
 
 import Common.Alert exposing (viewAlertError)
+import File exposing (File)
+import File.Select as Select
 import Gen.Route
 import Html exposing (Html, a, br, button, div, form, h1, hr, i, img, input, label, li, main_, ol, option, p, select, small, span, text)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick, onInput)
+import Json.Decode
 import S3.Types
 import List exposing (head)
 import Page
 import Request exposing (Request)
 import Shared
 import Storage exposing (signIn)
+import Task
 import View exposing (View)
 
 page : Shared.Model -> Request -> Page.With Model Msg
@@ -74,6 +78,9 @@ type Msg
     | ClickedHideEncryptionKey
     | ClickedHideRcloneSalt
     | ClickedHideRclonePassword
+    | ClickedLoadConfigurationFile
+    | ConfigurationFileSelected File
+    | FileDecodedToString String
 
 stringFromBool : Bool -> String
 stringFromBool value =
@@ -175,6 +182,34 @@ update shared req msg model =
                 ( { model | rcloneSaltHidden = False }, Cmd.none)
             else
                 ( { model | rcloneSaltHidden = True }, Cmd.none)
+
+        ClickedLoadConfigurationFile ->
+            ( model
+            , Select.file ["applicaiton/json"] ConfigurationFileSelected
+            )
+
+        ConfigurationFileSelected file ->
+            ( model
+            , Task.perform FileDecodedToString (File.toString file)
+            )
+
+        FileDecodedToString string ->
+            let
+                config = Json.Decode.decodeString Storage.storageDecoder string
+            in
+            case config of
+                Ok c ->
+                    case c.account of
+                        Just acc ->
+                            ( model
+                            , Storage.signIn acc c.password c.salt c.encryptionKey shared.storage
+                            )
+
+                        Nothing ->
+                            ( { model | status = Error "Unable to decode config file" }, Cmd.none)
+
+                Err _ ->
+                    ( { model | status = Error "Unable to decode config file" }, Cmd.none)
 
 
 -- View
@@ -495,6 +530,13 @@ viewMain model =
                                 , Attr.class "is-flex is-justify-end"
                                 ]
                                 [ button
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "button is-primary"
+                                    , Attr.style "margin-right" "10px"
+                                    , onClick ClickedLoadConfigurationFile
+                                    ]
+                                    [ text "Load configuration file" ]
+                                , button
                                     [ Attr.attribute "data-v" ""
                                     , Attr.class "button is-primary"
                                     , onClick ClickedSignIn
