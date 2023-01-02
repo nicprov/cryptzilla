@@ -42,6 +42,7 @@ storageToJson storage =
                 [ ("account", S3.encodeAccount account)
                 , ("rclonePassword", Encode.string storage.password)
                 , ("rcloneSalt", Encode.string storage.salt)
+                , ("encryptionKey", Encode.string storage.encryptionKey)
                 ]
         Nothing ->
             Encode.object []
@@ -63,7 +64,7 @@ storageDecoder =
         |> required "account" (nullable S3.accountDecoder)
         |> required "rclonePassword" Decode.string
         |> required "rcloneSalt" Decode.string
-        |> hardcoded ""
+        |> required "encryptionKey" Decode.string
 
 -- Auth
 
@@ -75,7 +76,7 @@ signIn account password salt encryptionKey storage =
 
 signOut: Storage -> Cmd msg
 signOut storage =
-    { storage | account = Nothing, password = "", salt = ""}
+    { storage | account = Nothing, password = "", salt = "", encryptionKey = ""}
         |> storageToJson
         |> save
 

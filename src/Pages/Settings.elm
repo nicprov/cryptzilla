@@ -172,7 +172,7 @@ update shared req msg model =
             ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
             else
                 (model, Cmd.batch [ Storage.signIn model.account model.rclonePassword model.rcloneSalt model.encryptionKey shared.storage
-                                  , Request.replaceRoute Gen.Route.Home_ req
+                                  --, Request.replaceRoute Gen.Route.Home_ req
                                   ]
                 )
 

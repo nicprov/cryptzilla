@@ -3,8 +3,16 @@ const app = Elm.Main.init({
 })
 
 app.ports.save.subscribe(storage => {
-    localStorage.setItem('storage', JSON.stringify(storage))
-    app.ports.load.send(storage)
+    if (Object.keys(storage).length === 0) { // Sign out event
+        localStorage.setItem('storage', JSON.stringify(storage));
+        app.ports.load.send(storage);
+    }
+    else { // Sign in/save settings event
+        tmpStorage = JSON.parse(JSON.stringify(storage));
+        tmpStorage.encryptionKey = ""; // Don't save encryption key to storage, only keep in memory
+        localStorage.setItem('storage', JSON.stringify(tmpStorage));
+        app.ports.load.send(storage);
+    }
 })
 
 

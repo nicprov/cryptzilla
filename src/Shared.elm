@@ -116,6 +116,9 @@ update : Request -> Msg -> Model -> ( Model, Cmd Msg )
 update _ msg model =
     case msg of
         StorageUpdated storage ->
+            let
+                tmpStorage = { storage | encryptionKey = model.storage.encryptionKey }
+            in
             ( { model | storage = storage }
             , Cmd.none
             )
