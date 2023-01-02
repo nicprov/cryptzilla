@@ -77,12 +77,14 @@ signIn account password salt encryptionKey storage =
         tmpStorage = { storage | account = Just account, password = password, salt = salt, encryptionKey = encryptionKey }
         encryptedStorage = encrypt tmpStorage
     in
-    encryptedStorage
-        |> storageToJson
-        |> save
-    --{ storage | account = Just account, password = password, salt = salt, encryptionKey = encryptionKey }
-    --    |> storageToJson
-    --    |> save
+    case encryptedStorage of
+        Just encrypted ->
+            encrypted
+                |> storageToJson
+                |> save
+
+        Nothing ->
+            Cmd.none
 
 signOut: Storage -> Cmd msg
 signOut storage =
@@ -98,7 +100,7 @@ authenticate account password salt encryptionKey storage =
         |> save
 
 -- Encrypt storage
-encrypt: Storage -> Storage
+encrypt: Storage -> Maybe Storage
 encrypt storage =
     case storage.account of
         Just acc ->
@@ -114,21 +116,21 @@ encrypt storage =
                                                 tmpAccount = acc
                                                 newAccount = { tmpAccount | accessKey = Tuple.first encryptedAccessKey, secretKey = Tuple.first encryptedSecretKey }
                                             in
-                                            { storage | account = Just newAccount, password = Tuple.first encryptedPassword, salt = Tuple.first encryptedSalt }
+                                            Just { storage | account = Just newAccount, password = Tuple.first encryptedPassword, salt = Tuple.first encryptedSalt }
                                         Err _ ->
-                                            storage
+                                            Nothing
                                 Err _ ->
-                                    storage
+                                    Nothing
                         Err _ ->
-                            storage
+                            Nothing
                 Err _ ->
-                    storage
+                    Nothing
         Nothing ->
-            storage
+            Nothing
 
 
 -- Decrypt storage
-decrypt: Storage -> Storage
+decrypt: Storage -> Maybe Storage
 decrypt storage =
     case storage.account of
         Just acc ->
@@ -144,17 +146,17 @@ decrypt storage =
                                                 tmpAccount = acc
                                                 newAccount = { tmpAccount | accessKey = decryptedAccessKey, secretKey = decryptedSecretKey }
                                             in
-                                            { storage | account = Just newAccount, password = decryptedPassword, salt = decryptedSalt }
+                                            Just { storage | account = Just newAccount, password = decryptedPassword, salt = decryptedSalt }
                                         Err _ ->
-                                            storage
+                                            Nothing
                                 Err _ ->
-                                    storage
+                                    Nothing
                         Err _ ->
-                            storage
+                            Nothing
                 Err _ ->
-                    storage
+                    Nothing
         Nothing ->
-            storage
+            Nothing
 
 -- Init
 

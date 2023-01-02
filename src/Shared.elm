@@ -118,10 +118,16 @@ update req msg model =
         StorageUpdated storage ->
             case storage.account of
                 Just _ ->
-                    ( { model | storage = decrypt storage }
-                    , Request.replaceRoute Gen.Route.Home_ req
-                    )
+                    case decrypt storage of
+                        Just decryptedStorage ->
+                            ( { model | storage = decryptedStorage }
+                            , Request.replaceRoute Gen.Route.Home_ req
+                            )
 
+                        Nothing ->
+                            ( { model | storage = storage }
+                            , Request.replaceRoute Gen.Route.Login req
+                            )
                 Nothing ->
                     ( { model | storage = storage }
                     , Request.replaceRoute Gen.Route.Login req
