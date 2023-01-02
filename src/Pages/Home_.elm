@@ -28,7 +28,7 @@ import View exposing (View)
 page : Shared.Model -> Request -> Page.With Model Msg
 page shared req =
     Page.element
-        { init = init shared
+        { init = init req shared
         , update = update shared req
         , view = view shared
         , subscriptions = subscriptions
@@ -54,14 +54,14 @@ type Status
     | Failure String
     | None
 
-init : Shared.Model -> (Model, Cmd Msg)
-init shared =
+init : Request -> Shared.Model -> (Model, Cmd Msg)
+init req shared =
     (Model Nothing "" [] [] "" "" "" [] (Loading "Loading...") False ""
     , case shared.storage.account of
         Just account ->
             listBucket account
         Nothing ->
-            Cmd.none
+            Request.replaceRoute Gen.Route.Login req -- Redirect to login page if account is none
     )
 
 -- Update

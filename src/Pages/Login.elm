@@ -42,7 +42,23 @@ type alias Model =
 
 init : (Model, Cmd Msg)
 init =
-    (Model (S3.Types.Account "S3" (Just "") False "" "" []) None "" "" "" True True True True, Cmd.none)
+    ( { account = { name = "S3"
+                  , region = Just "nyc3"
+                  , isDigitalOcean = True
+                  , accessKey = "DO0022RTAFUE6HREZ84L"
+                  , secretKey = "Ats1iG8ns/vOb5yOHKw5aAp4UY3Rw8FCrHKbmNEBdYk"
+                  , buckets = ["test-onintime"]
+                  }
+      , status = None
+      , rclonePassword = "4MHsEgQ21fXF_BwI7CpJFANqL8qq"
+      , rcloneSalt = ""
+      , encryptionKey = "test"
+      , secretKeyHidden = True
+      , rclonePasswordHidden = True
+      , rcloneSaltHidden = True
+      , encryptionKeyHidden = True
+      }
+    , Cmd.none )
 
 -- Update
 
@@ -134,8 +150,11 @@ update shared req msg model =
             else if model.encryptionKey == "" then
             ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
             else
+            --( model
+            --, Storage.signIn model.account model.rclonePassword model.rcloneSalt model.encryptionKey shared.storage
+            --    |> Request.replaceRoute Gen.Route.Home_ req
+            --)
                 (model, Cmd.batch [ Storage.signIn model.account model.rclonePassword model.rcloneSalt model.encryptionKey shared.storage
-                                  , Request.replaceRoute Gen.Route.Home_ req
                                   ]
                 )
 
