@@ -26,7 +26,7 @@ import Gen.Route
 import Json.Decode as Json exposing (Decoder)
 import S3.Types
 import Request exposing (Request)
-import Storage exposing (Storage)
+import Storage exposing (Storage, decrypt)
 
 
 type alias Flags =
@@ -116,9 +116,16 @@ update : Request -> Msg -> Model -> ( Model, Cmd Msg )
 update req msg model =
     case msg of
         StorageUpdated storage ->
-            ( { model | storage = storage }
-            , Request.replaceRoute Gen.Route.Home_ req
-            )
+            case storage.account of
+                Just _ ->
+                    ( { model | storage = decrypt storage }
+                    , Request.replaceRoute Gen.Route.Home_ req
+                    )
+
+                Nothing ->
+                    ( { model | storage = storage }
+                    , Request.replaceRoute Gen.Route.Login req
+                    )
 
 
 subscriptions : Request -> Model -> Sub Msg

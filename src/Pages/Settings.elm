@@ -171,9 +171,8 @@ update shared req msg model =
             else if model.encryptionKey == "" then
             ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
             else
-                (model, Cmd.batch [ Storage.signIn model.account model.rclonePassword model.rcloneSalt model.encryptionKey shared.storage
-                                  --, Request.replaceRoute Gen.Route.Home_ req
-                                  ]
+                ( model
+                , Storage.signIn model.account model.rclonePassword model.rcloneSalt model.encryptionKey shared.storage
                 )
 
         ClickedHideSecretKey ->

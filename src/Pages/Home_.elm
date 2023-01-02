@@ -56,13 +56,32 @@ type Status
 
 init : Request -> Shared.Model -> (Model, Cmd Msg)
 init req shared =
-    (Model Nothing "" [] [] "" "" "" [] (Loading "Loading...") False ""
-    , case shared.storage.account of
-        Just account ->
-            listBucket account
-        Nothing ->
-            Request.replaceRoute Gen.Route.Login req -- Redirect to login page if account is none
-    )
+    let
+        tmpModel = { keyList = Nothing
+                   , currentDir = ""
+                   , folderList = []
+                   , selectedList = []
+                   , expandedItem = ""
+                   , key = ""
+                   , text = ""
+                   , headers = []
+                   , status = Loading "Loading..."
+                   , folderModal = False
+                   , folderName = ""
+                   }
+    in
+    if shared.storage.encryptionKey /= "" then
+        ( { tmpModel | status = Loading "Loading..." }
+        , case shared.storage.account of
+            Just account ->
+                listBucket account
+            Nothing ->
+                Request.replaceRoute Gen.Route.Login req -- Redirect to login page if account is none
+        )
+    else
+        ( tmpModel
+        , Request.replaceRoute Gen.Route.Authenticate req
+        )
 
 -- Update
 

@@ -12,8 +12,6 @@ import Request exposing (Request)
 import Shared
 import Storage exposing (signIn)
 import View exposing (View)
-import Crypto.Strings exposing (decrypt, encrypt)
-import Random exposing (Seed, initialSeed)
 
 page : Shared.Model -> Request -> Page.With Model Msg
 page shared req =
@@ -45,14 +43,14 @@ init =
     ( { account = { name = "S3"
                   , region = Just "nyc3"
                   , isDigitalOcean = True
-                  , accessKey = "DO0022RTAFUE6HREZ84L"
-                  , secretKey = "Ats1iG8ns/vOb5yOHKw5aAp4UY3Rw8FCrHKbmNEBdYk"
-                  , buckets = ["test-onintime"]
+                  , accessKey = ""
+                  , secretKey = ""
+                  , buckets = [""]
                   }
       , status = None
-      , rclonePassword = "4MHsEgQ21fXF_BwI7CpJFANqL8qq"
+      , rclonePassword = ""
       , rcloneSalt = ""
-      , encryptionKey = "test"
+      , encryptionKey = ""
       , secretKeyHidden = True
       , rclonePasswordHidden = True
       , rcloneSaltHidden = True
@@ -148,14 +146,10 @@ update shared req msg model =
             else if model.rclonePassword == "" then
                 ( { model | status = Error "Rclone password cannot be empty"}, Cmd.none)
             else if model.encryptionKey == "" then
-            ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
+                ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
             else
-            --( model
-            --, Storage.signIn model.account model.rclonePassword model.rcloneSalt model.encryptionKey shared.storage
-            --    |> Request.replaceRoute Gen.Route.Home_ req
-            --)
-                (model, Cmd.batch [ Storage.signIn model.account model.rclonePassword model.rcloneSalt model.encryptionKey shared.storage
-                                  ]
+                ( model
+                , Storage.signIn model.account model.rclonePassword model.rcloneSalt model.encryptionKey shared.storage
                 )
 
         ClickedHideSecretKey ->
