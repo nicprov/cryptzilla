@@ -46,6 +46,7 @@ type alias Model =
     , status: Status
     , folderModal: Bool
     , folderName: String
+    , fileNameEncrypted: Bool
     }
 
 type Status
@@ -68,6 +69,7 @@ init req shared =
                    , status = Loading "Loading..."
                    , folderModal = False
                    , folderName = ""
+                   , fileNameEncrypted = False
                    }
     in
     if shared.storage.encryptionKey /= "" then
@@ -104,6 +106,7 @@ type Msg
     | ClickedCreateFolder
     | ClickedDeleteSelected
     | ClickedCopyURL
+    | ClickedToggleFileNameEncryption
     | ClickedSelected KeyInfoDecrypted
     | ClickedFilePath String
     | ClickedDropdown String
@@ -482,6 +485,12 @@ update shared req msg model =
         ClickedSettings ->
             ( model, Request.replaceRoute Gen.Route.Settings req )
 
+        ClickedToggleFileNameEncryption ->
+            if model.fileNameEncrypted then
+                ( { model | fileNameEncrypted = False }, Cmd.none )
+            else
+                ( { model | fileNameEncrypted = True }, Cmd.none )
+
 -- Listen for shared model changes
 subscriptions: Model -> Sub Msg
 subscriptions model =
@@ -765,6 +774,41 @@ viewMain shared model account =
                                                         []
                                                     ]
                                                 , text " Refresh" ]
+                                            ]
+                                        ]
+                                    ]
+                                , a
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "add-new is-inline-block"
+                                    , Attr.href "#"
+                                    ]
+                                    [ div
+                                        [ Attr.attribute "data-v-081c0a81" ""
+                                        , Attr.class "dropdown is-mobile-modal"
+                                        ]
+                                        [ div
+                                            [ Attr.attribute "role" "button"
+                                            , Attr.attribute "aria-haspopup" "true"
+                                            , Attr.class "dropdown-trigger"
+                                            ]
+                                            [ span
+                                                [ Attr.attribute "data-v-081c0a81" ""
+                                                , Attr.href "#"
+                                                , onClick ClickedToggleFileNameEncryption
+                                                ]
+                                                [ span
+                                                    [ Attr.attribute "data-v-081c0a81" ""
+                                                    , Attr.class "icon is-small"
+                                                    ]
+                                                    [ i
+                                                        [ if model.fileNameEncrypted then
+                                                            Attr.class "fas fa-eye"
+                                                          else
+                                                            Attr.class "fas fa-eye-slash"
+                                                        ]
+                                                        []
+                                                    ]
+                                                , text " Toggle encryption" ]
                                             ]
                                         ]
                                     ]
@@ -1098,9 +1142,6 @@ viewFileItem shared model key =
 
 viewFile: Shared.Model -> Model -> KeyInfoDecrypted -> Html Msg
 viewFile shared model key =
-    let
-        name = String.replace model.currentDir "" key.keyDecrypted
-    in
     tr
         [ Attr.draggable "false"
         , Attr.class "file-row type-file"
@@ -1140,7 +1181,11 @@ viewFile shared model key =
                     , Attr.class "is-block name"
                     , Attr.href "#"
                     ]
-                    [ text name ]
+                    [ text (if model.fileNameEncrypted then
+                                String.replace model.currentDir "" key.keyEncrypted
+                            else
+                                String.replace model.currentDir "" key.keyDecrypted )
+                    ]
                 ]
             ]
         , td
@@ -1308,10 +1353,7 @@ viewFolderItem shared model key =
         div [] []
 
 viewFolder: Shared.Model -> Model -> KeyInfoDecrypted -> Html Msg
-viewFolder shared model key =
-    let
-        name = String.replace model.currentDir "" key.keyDecrypted
-    in
+viewFolder _ model key =
     tr
     [ Attr.draggable "false"
     , Attr.class "file-row type-dir"
@@ -1351,7 +1393,17 @@ viewFolder shared model key =
                 , Attr.href "#"
                 , onClick (ClickedFolder key.keyDecrypted)
                 ]
-                [ text (String.left ((String.length name) - 1) name) ]
+                [ text (if model.fileNameEncrypted then
+                            let
+                                name = String.replace model.currentDir "" key.keyEncrypted
+                            in
+                            (String.left ((String.length name) - 1) name)
+                        else
+                            let
+                                name = String.replace model.currentDir "" key.keyDecrypted
+                            in
+                            (String.left ((String.length name) - 1) name))
+                ]
             ]
         ]
     , td
