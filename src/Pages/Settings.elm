@@ -1,10 +1,12 @@
 module Pages.Settings exposing (Model, Msg, page)
 
 import Common.Alert exposing (viewAlertError)
+import File.Download as Download
 import Gen.Route
 import Html exposing (Html, a, br, button, div, form, h1, hr, i, img, input, label, li, main_, ol, option, p, select, small, span, text)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick, onInput)
+import Json.Encode exposing (encode)
 import S3.Types
 import List exposing (head)
 import Page
@@ -97,6 +99,7 @@ type Msg
     | ClickedHideRcloneSalt
     | ClickedHideRclonePassword
     | ClickedHome
+    | ClickedDownloadConfig
 
 stringFromBool : Bool -> String
 stringFromBool value =
@@ -201,6 +204,11 @@ update shared req msg model =
 
         ClickedHome ->
             ( model, Request.replaceRoute Gen.Route.Home_ req )
+
+        ClickedDownloadConfig ->
+            ( model
+            , Download.string "config.json" "application/json" (encode 0 (Storage.storageToJson shared.storage))
+            )
 
 
 -- View
@@ -525,6 +533,13 @@ viewMain model =
                                 , Attr.class "is-flex is-justify-end"
                                 ]
                                 [ button
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "button is-primary"
+                                    , Attr.style "margin-right" "10px"
+                                    , onClick ClickedDownloadConfig
+                                    ]
+                                    [ text "Download Config" ]
+                                , button
                                     [ Attr.attribute "data-v" ""
                                     , Attr.class "button is-primary"
                                     , onClick ClickedSave
