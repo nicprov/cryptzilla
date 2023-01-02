@@ -36,8 +36,10 @@ page shared req =
 
 type alias Model =
     { keyList: Maybe KeyListDecrypted
+    , tempKeyList: Maybe KeyListDecrypted -- Used for search purposes to not overwrite original file list
     , currentDir: String
     , folderList: List(KeyInfoDecrypted)
+    , tempFolderList: List(KeyInfoDecrypted) -- Used for search purposes to not overwrite original folder list
     , selectedList: List(KeyInfoDecrypted)
     , expandedItem: String
     , key: String
@@ -47,6 +49,7 @@ type alias Model =
     , folderModal: Bool
     , folderName: String
     , fileNameEncrypted: Bool
+    , search: String
     }
 
 type Status
@@ -59,8 +62,10 @@ init : Request -> Shared.Model -> (Model, Cmd Msg)
 init req shared =
     let
         tmpModel = { keyList = Nothing
+                   , tempKeyList = Nothing
                    , currentDir = ""
                    , folderList = []
+                   , tempFolderList = []
                    , selectedList = []
                    , expandedItem = ""
                    , key = ""
@@ -70,6 +75,7 @@ init req shared =
                    , folderModal = False
                    , folderName = ""
                    , fileNameEncrypted = False
+                   , search = ""
                    }
     in
     if shared.storage.encryptionKey /= "" then
@@ -112,6 +118,7 @@ type Msg
     | ClickedDropdown String
     | ClickedDownload KeyInfoDecrypted
     | ClickedDelete String
+    | ChangedSearch String
     | ChangedFolderName String
     | FileSelected File
     | ReceivedDecryptedKeyList KeyListDecrypted
@@ -210,6 +217,12 @@ isFolder key =
     else
         False
 
+checkContainsSearch: String -> KeyInfoDecrypted-> Bool
+checkContainsSearch search item =
+    if String.contains search item.keyDecrypted then
+        True
+    else
+        False
 
 update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
 update shared req msg model =
@@ -269,10 +282,13 @@ update shared req msg model =
                 let
                     reducedFolder = List.map removeFiles keyList.keys
                     folders = List.filter isFolder reducedFolder
+                    folderList = uniqueBy (\k -> k.keyDecrypted) folders
                 in
                 ( { model
                     | keyList = Just keyList
-                    , folderList = uniqueBy (\k -> k.keyDecrypted) folders
+                    , tempKeyList = Just keyList
+                    , folderList = folderList
+                    , tempFolderList = folderList
                     , status = (if (List.length keyList.keys == 0) then
                                     Failure "No files to show"
                                 else
@@ -491,6 +507,22 @@ update shared req msg model =
             else
                 ( { model | fileNameEncrypted = True }, Cmd.none )
 
+        ChangedSearch search ->
+            case model.keyList of
+                Just keyList ->
+                    let
+                        filteredKeys = List.filter (checkContainsSearch search) keyList.keys
+                        newKeyList = { keyList | keys = filteredKeys }
+                        reducedFolder = List.map removeFiles filteredKeys
+                        folders = List.filter isFolder reducedFolder
+                        folderList = uniqueBy (\k -> k.keyDecrypted) folders
+                    in
+                    ( { model | tempKeyList = Just newKeyList, tempFolderList = folderList, search = search }, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+
 -- Listen for shared model changes
 subscriptions: Model -> Sub Msg
 subscriptions model =
@@ -655,22 +687,15 @@ viewMain shared model account =
                             , div
                                 [ Attr.attribute "data-v-081c0a81" ""
                                 ]
-                                [ a
+                                [ input
                                     [ Attr.attribute "data-v-081c0a81" ""
                                     , Attr.id "search"
                                     , Attr.class "search-btn"
+                                    , Attr.placeholder "search"
                                     , Attr.href "#"
-                                    ]
-                                    [ span
-                                        [ Attr.attribute "data-v-081c0a81" ""
-                                        , Attr.class "icon is-small"
-                                        ]
-                                        [ i
-                                            [ Attr.class "fas fa-search"
-                                            ]
-                                            []
-                                        ]
-                                    ]
+                                    , Attr.value model.search
+                                    , onInput ChangedSearch
+                                    ] []
                                 ]
                             ]
                         , section
@@ -813,41 +838,6 @@ viewMain shared model account =
                                         ]
                                     ]
                                 , viewSelectedDelete model
-                                ]
-                            , div
-                                [ Attr.attribute "data-v-081c0a81" ""
-                                , Attr.id "pagination"
-                                ]
-                                [ div
-                                    [ Attr.attribute "data-v-081c0a81" ""
-                                    ]
-                                    [ div
-                                        [ Attr.class "control"
-                                        ]
-                                        [ span
-                                            [ Attr.class "select is-small"
-                                            ]
-                                            [ select []
-                                                [ option
-                                                    [ Attr.value ""
-                                                    ]
-                                                    [ text "No pagination" ]
-                                                , option
-                                                    [ Attr.value "5"
-                                                    ]
-                                                    [ text "5 Per Page" ]
-                                                , option
-                                                    [ Attr.value "10"
-                                                    ]
-                                                    [ text "10 Per Page" ]
-                                                , option
-                                                    [ Attr.value "15"
-                                                    ]
-                                                    [ text "15 Per Page" ]
-                                                ]
-                                            ]
-                                        ]
-                                    ]
                                 ]
                             ]
                         , div
@@ -1010,11 +1000,11 @@ viewMain shared model account =
                                             ]
                                         ]
                                     , tbody []
-                                        (case model.keyList of
+                                        (case model.tempKeyList of
                                             Just keyList ->
                                                 if List.length keyList.keys /= 0 then
                                                     (List.append
-                                                        (List.append (viewBack model) (List.map (viewFolderItem shared model) model.folderList))
+                                                        (List.append (viewBack model) (List.map (viewFolderItem shared model) model.tempFolderList))
                                                         (List.map (viewFileItem shared model) keyList.keys)
                                                     )
                                                 else
