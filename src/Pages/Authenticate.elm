@@ -2,6 +2,7 @@ module Pages.Authenticate exposing (Model, Msg, page)
 
 import Common.Alert exposing (viewAlertError)
 import Gen.Route
+import Hotkeys exposing (onKeyCode)
 import Html exposing (Html, a, br, button, div, form, h1, hr, i, img, input, label, li, main_, ol, option, p, select, small, span, text)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick, onInput)
@@ -60,6 +61,16 @@ type Msg
     = ChangeEncryptionKey String
     | ClickedDecrypt
     | ClickedHideEncryptionKey
+    | PressedEnter
+
+authenticate: Shared.Model -> Model -> (Model, Cmd Msg)
+authenticate shared model =
+    if model.encryptionKey == "" then
+        ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
+    else
+        ( model
+        , Storage.authenticate model.account shared.storage.password shared.storage.salt model.encryptionKey shared.storage
+        )
 
 update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
 update shared req msg model =
@@ -69,18 +80,16 @@ update shared req msg model =
             ( { model | encryptionKey = key }, Cmd.none)
 
         ClickedDecrypt ->
-            if model.encryptionKey == "" then
-                ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
-            else
-                ( model
-                , Storage.authenticate model.account shared.storage.password shared.storage.salt model.encryptionKey shared.storage
-                )
+            authenticate shared model
 
         ClickedHideEncryptionKey ->
             if model.encryptionKeyHidden then
                 ( { model | encryptionKeyHidden = False }, Cmd.none)
             else
                 ( { model | encryptionKeyHidden = True }, Cmd.none)
+
+        PressedEnter ->
+            authenticate shared model
 
 -- View
 
@@ -156,6 +165,7 @@ viewMain model =
                                         , Attr.class "input"
                                         , Attr.value model.encryptionKey
                                         , onInput ChangeEncryptionKey
+                                        , onKeyCode 13 PressedEnter
                                         ]
                                         []
                                     , small

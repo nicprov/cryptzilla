@@ -30,6 +30,7 @@
             "elm-community/list-extra": "8.7.0",
             "folkertdev/elm-sha2": "1.0.0",
             "jxxcarlson/hex": "4.0.0",
+            "kmbn/elm-hotkeys": "1.1.1",
             "ktonon/elm-crypto": "1.1.2",
             "ktonon/elm-word": "2.1.2",
             "miniBill/elm-codec": "1.2.0",
