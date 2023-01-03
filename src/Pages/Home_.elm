@@ -549,7 +549,7 @@ subscriptionKeyList _ =
 
 view : Shared.Model -> Model -> View Msg
 view shared model =
-    { title = "File Manager"
+    { title = "Cryptzilla | Home"
     , body = [ viewMain shared model shared.storage.account
              ]
     }

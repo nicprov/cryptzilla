@@ -95,7 +95,7 @@ update shared req msg model =
 
 view : Shared.Model -> Model -> View Msg
 view _ model =
-    { title = "Authenticate"
+    { title = "Cryptzilla | Authenticate"
     , body = [ viewMain model
              ]
     }
