@@ -45,7 +45,7 @@ type alias Model =
 init : (Model, Cmd Msg)
 init =
     ( { account = { name = "S3"
-                  , region = Just "nyc3"
+                  , region = Just ""
                   , isDigitalOcean = True
                   , accessKey = ""
                   , secretKey = ""
