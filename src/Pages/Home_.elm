@@ -239,7 +239,7 @@ update shared req msg model =
         ReceiveListBucket result ->
             case result of
                 Err err ->
-                    ( { model | status = Failure (Debug.toString err) }
+                    ( { model | status = Failure "Unable to list files" }
                     , Cmd.none
                     )
 
@@ -332,7 +332,7 @@ update shared req msg model =
         ReceiveDeleteObject result ->
             case result of
                 Err err ->
-                    ( { model | status = Failure ("Unable to delete file: " ++ (Debug.toString err)) }
+                    ( { model | status = Failure ("Unable to delete file") }
                     , Cmd.none
                     )
 
@@ -372,7 +372,7 @@ update shared req msg model =
         ReceiveGetObjectBytes result ->
             case result of
                 Err err ->
-                    ( { model | status = Failure ("Unable to download file: " ++ (Debug.toString err)) }
+                    ( { model | status = Failure ("Unable to download file") }
                     , Cmd.none
                     )
 
@@ -416,7 +416,7 @@ update shared req msg model =
         ReceivePutObjectBytes result ->
             case result of
                 Err err ->
-                    ( { model | status = Failure ("Unable to upload file: " ++ (Debug.toString err)) }
+                    ( { model | status = Failure ("Unable to upload file") }
                     , Cmd.none
                     )
 
@@ -449,7 +449,7 @@ update shared req msg model =
         ReceivedPutFolder result ->
             case result of
                 Err err ->
-                    ( { model | status = Failure ("Unable to create folder: " ++ (Debug.toString err)) }
+                    ( { model | status = Failure ("Unable to create folder") }
                     , Cmd.none
                     )
 
