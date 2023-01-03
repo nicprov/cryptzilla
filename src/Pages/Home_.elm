@@ -271,7 +271,7 @@ update shared req msg model =
                             if dir == bucket then
                                 ( { model | currentDir = "" }, Cmd.none )
                             else
-                                (model, Cmd.none)
+                                ( { model | currentDir = (String.dropLeft ((String.length bucket) + 1) dir) ++ "/" }, Cmd.none)
                         Nothing ->
                             (model, Cmd.none)
                 Nothing ->
@@ -668,20 +668,20 @@ viewMain shared model account =
                                 [ ul
                                     [ Attr.attribute "data-v-081c0a81" ""
                                     ]
-                                    ( case account of
+                                    (
+                                    case account of
                                         Just a ->
-                                            ( List.append [viewFilePath
-                                                (case (List.head a.buckets) of
-                                                    Just bucket ->
-                                                        bucket
-                                                    Nothing ->
-                                                        ""
-                                                )
-                                                ]
-                                              (List.map viewFilePath (String.split "/" model.currentDir))
-                                            )
+                                            case (List.head a.buckets) of
+                                                Just bucket ->
+                                                    let
+                                                        indexedDirs = (List.indexedMap Tuple.pair (String.split "/" (bucket ++ "/" ++ model.currentDir)))
+                                                    in
+                                                    List.map (viewFilePath indexedDirs) indexedDirs
+                                                Nothing ->
+                                                    [div [] []]
+
                                         Nothing ->
-                                            (List.map viewFilePath (String.split "/" model.currentDir))
+                                            [div [] []]
                                     )
                                 ]
                             , div
@@ -1103,17 +1103,20 @@ viewFolderModal =
         ]
     ]
 
-viewFilePath: String -> Html Msg
-viewFilePath dir =
+viewFilePath: List((Int, String)) -> (Int, String) -> Html Msg
+viewFilePath listDirs dir =
+    let
+        fullPath = String.join "/" (List.map (\t -> Tuple.second t) (List.filter (\t -> (Tuple.first t) <= (Tuple.first dir)) listDirs))
+    in
     li
     [ Attr.attribute "data-v-081c0a81" ""
     ]
     [ a
         [ Attr.attribute "data-v-081c0a81" ""
         , Attr.href "#"
-        , onClick (ClickedFilePath dir)
+        , onClick (ClickedFilePath fullPath)
         ]
-        [ text dir ]
+        [ text (Tuple.second dir) ]
     ]
 
 
