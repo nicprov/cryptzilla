@@ -239,7 +239,7 @@ update shared req msg model =
         ReceiveListBucket result ->
             case result of
                 Err err ->
-                    ( { model | status = Failure "Unable to list files" }
+                    ( { model | status = Failure "Unable to list files, invalid credentials" }
                     , Cmd.none
                     )
 
