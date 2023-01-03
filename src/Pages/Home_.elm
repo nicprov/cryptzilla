@@ -668,25 +668,6 @@ viewMain shared model account =
                                 [ ul
                                     [ Attr.attribute "data-v-081c0a81" ""
                                     ]
-                                    --(
-                                    --let
-                                    --    indexedDirs = (List.indexedMap Tuple.pair (String.split "/" model.currentDir))
-                                    --in
-                                    --case account of
-                                    --    Just a ->
-                                    --        ( List.append [(viewFilePath indexedDirs)
-                                    --            (case (List.head a.buckets) of
-                                    --                Just bucket ->
-                                    --                    (0, bucket)
-                                    --                Nothing ->
-                                    --                    (0, "")
-                                    --            )
-                                    --            ]
-                                    --          (List.map (viewFilePath indexedDirs) indexedDirs)
-                                    --        )
-                                    --    Nothing ->
-                                    --        (List.map (viewFilePath indexedDirs) indexedDirs)
-                                    --)
                                     (
                                     case account of
                                         Just a ->
