@@ -19,6 +19,7 @@ import S3.Types
 import List exposing (concatMap)
 import Crypto.Strings as Strings exposing (decrypt, encrypt)
 import Random exposing (Seed, initialSeed)
+import String exposing (dropLeft, left)
 
 -- Model
 
@@ -104,13 +105,13 @@ encrypt: Storage -> Maybe Storage
 encrypt storage =
     case storage.account of
         Just acc ->
-            case Strings.encrypt (initialSeed 0) storage.encryptionKey acc.accessKey of -- encrypt access key
+            case Strings.encrypt (initialSeed 0) storage.encryptionKey ("valid" ++ acc.accessKey) of -- encrypt access key
                 Ok encryptedAccessKey ->
-                    case Strings.encrypt (initialSeed 0) storage.encryptionKey acc.secretKey of -- encrypt secret key
+                    case Strings.encrypt (initialSeed 0) storage.encryptionKey ("valid" ++ acc.secretKey) of -- encrypt secret key
                         Ok encryptedSecretKey ->
-                            case Strings.encrypt (initialSeed 0) storage.encryptionKey storage.password of -- encrypt rclone password
+                            case Strings.encrypt (initialSeed 0) storage.encryptionKey ("valid" ++ storage.password) of -- encrypt rclone password
                                 Ok encryptedPassword ->
-                                    case Strings.encrypt (initialSeed 0) storage.encryptionKey storage.salt of -- encrypt rclone salt
+                                    case Strings.encrypt (initialSeed 0) storage.encryptionKey ("valid" ++ storage.salt) of -- encrypt rclone salt
                                         Ok encryptedSalt ->
                                             let
                                                 tmpAccount = acc
@@ -143,10 +144,25 @@ decrypt storage =
                                     case Strings.decrypt storage.encryptionKey storage.salt of -- decrypt rclone salt
                                         Ok decryptedSalt ->
                                             let
+                                                -- verify if the first 5 characters = valid, if not, will be gibberish (invalid passphrase)
+                                                validVerificationAccessKey = left 5 decryptedAccessKey
+                                                validVerificationSecretKey = left 5 decryptedSecretKey
+                                                validVerificationPassword = left 5 decryptedPassword
+                                                validVerificationSalt = left 5 decryptedSalt
+
+                                                -- drop the validation keyword "valid" from the decrypted text
+                                                strippedDecryptedAccessKey = dropLeft 5 decryptedAccessKey
+                                                strippedDecryptedSecretKey = dropLeft 5 decryptedSecretKey
+                                                strippedDecryptedPassword = dropLeft 5 decryptedPassword
+                                                strippedDecryptedSalt = dropLeft 5 decryptedSalt
+
                                                 tmpAccount = acc
-                                                newAccount = { tmpAccount | accessKey = decryptedAccessKey, secretKey = decryptedSecretKey }
+                                                newAccount = { tmpAccount | accessKey = strippedDecryptedAccessKey, secretKey = strippedDecryptedSecretKey }
                                             in
-                                            Just { storage | account = Just newAccount, password = decryptedPassword, salt = decryptedSalt }
+                                            if validVerificationAccessKey == "valid" && validVerificationSecretKey == "valid" && validVerificationPassword == "valid" && validVerificationSalt == "valid" then
+                                                Just { storage | account = Just newAccount, password = strippedDecryptedPassword, salt = strippedDecryptedSalt }
+                                            else
+                                                Nothing
                                         Err _ ->
                                             Nothing
                                 Err _ ->
