@@ -126,7 +126,7 @@ update req msg model =
 
                         Nothing ->
                             ( { model | storage = storage }
-                            , Request.replaceRoute Gen.Route.Login req
+                            , Cmd.none
                             )
                 Nothing ->
                     ( { model | storage = storage }

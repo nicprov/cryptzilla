@@ -68,7 +68,7 @@ authenticate shared model =
     if model.encryptionKey == "" then
         ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
     else
-        ( model
+        ( { model | status = Error "Invalid decryption key" } -- This will only show if the user isn't redirected to the home page
         , Storage.authenticate model.account shared.storage.password shared.storage.salt model.encryptionKey shared.storage
         )
 
