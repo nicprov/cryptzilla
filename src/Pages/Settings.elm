@@ -212,7 +212,7 @@ update shared req msg model =
             case encryptedStorage of
                 Just s ->
                     ( model
-                    , Download.string "config.json" "application/json" (encode 0 (Storage.storageToJson s))
+                    , Download.string "config.json" "application/json" (encode 0 (Storage.storageToJson { s | encryptionKey = ""}))
                     )
 
                 Nothing ->

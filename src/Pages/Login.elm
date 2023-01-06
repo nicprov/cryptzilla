@@ -4,9 +4,10 @@ import Common.Alert exposing (viewAlertError)
 import File exposing (File)
 import File.Select as Select
 import Gen.Route
-import Html exposing (Html, a, br, button, div, form, h1, hr, i, img, input, label, li, main_, ol, option, p, select, small, span, text)
+import Html exposing (Html, a, br, button, div, footer, form, h1, hr, i, img, input, label, li, main_, ol, option, p, section, select, small, span, text)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick, onInput)
+import Http
 import Json.Decode
 import S3.Types
 import List exposing (head)
@@ -40,6 +41,8 @@ type alias Model =
     , rclonePasswordHidden: Bool
     , rcloneSaltHidden: Bool
     , encryptionKeyHidden: Bool
+    , urlModal: Bool
+    , configUrl: String
     }
 
 init : (Model, Cmd Msg)
@@ -59,6 +62,8 @@ init =
       , rclonePasswordHidden = True
       , rcloneSaltHidden = True
       , encryptionKeyHidden = True
+      , urlModal = False
+      , configUrl = ""
       }
     , Cmd.none )
 
@@ -73,14 +78,19 @@ type Msg
     | ChangeRclonePassword String
     | ChangeRcloneSalt String
     | ChangeEncryptionKey String
+    | ChangedConfigURL String
     | ClickedSignIn
     | ClickedHideSecretKey
     | ClickedHideEncryptionKey
     | ClickedHideRcloneSalt
     | ClickedHideRclonePassword
+    | ClickedFetchURLConfig
+    | ClickedCancelURLModal
     | ClickedLoadConfigurationFile
+    | ClickedFetchConfigurationFileFromURL
     | ConfigurationFileSelected File
     | FileDecodedToString String
+    | GotConfigFromURL (Result Http.Error String)
 
 stringFromBool : Bool -> String
 stringFromBool value =
@@ -96,8 +106,15 @@ boolFromString value =
   else
     False
 
+getConfig: String -> Cmd Msg
+getConfig url =
+    Http.get
+        { url = url
+        , expect = Http.expectString GotConfigFromURL
+        }
+
 update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
-update shared req msg model =
+update shared _ msg model =
     case msg of
         ChangeRegion region ->
             let
@@ -210,6 +227,31 @@ update shared req msg model =
 
                 Err _ ->
                     ( { model | status = Error "Unable to decode config file" }, Cmd.none)
+
+        ClickedFetchConfigurationFileFromURL ->
+            ( { model | urlModal = True }, Cmd.none )
+
+        GotConfigFromURL result ->
+            case result of
+                Ok config ->
+                    ( model
+                    , Task.perform (always (FileDecodedToString config)) (Task.succeed ())
+                    )
+
+                Err _ ->
+                    ( { model | status = Error "Unable to fetch config file" }, Cmd.none)
+
+
+        ChangedConfigURL url ->
+            ( { model | configUrl = url }, Cmd.none )
+
+        ClickedFetchURLConfig ->
+            ( model, getConfig model.configUrl )
+
+        ClickedCancelURLModal ->
+            ( { model | urlModal = False }, Cmd.none )
+
+
 
 
 -- View
@@ -533,6 +575,13 @@ viewMain model =
                                     [ Attr.attribute "data-v" ""
                                     , Attr.class "button is-primary"
                                     , Attr.style "margin-right" "10px"
+                                    , onClick ClickedFetchConfigurationFileFromURL
+                                    ]
+                                    [ text "Fetch configuration file from URL" ]
+                                , button
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "button is-primary"
+                                    , Attr.style "margin-right" "10px"
                                     , onClick ClickedLoadConfigurationFile
                                     ]
                                     [ text "Load configuration file" ]
@@ -543,9 +592,80 @@ viewMain model =
                                     ]
                                     [ text "Log in" ]
                                 ]
+                            , if model.urlModal then
+                                viewConfigURLModal model
+                              else
+                                div [] []
                             ]
                         ]
                     ]
                 ]
             ]
         ]
+
+viewConfigURLModal: Model -> Html Msg
+viewConfigURLModal model =
+    div
+    [ Attr.class "dialog modal is-active"
+    ]
+    [ div
+        [ Attr.class "modal-background"
+        ]
+        []
+    , div
+        [ Attr.class "modal-card animation-content"
+        ]
+        [
+        section
+            [ Attr.class "modal-card-body is-titleless"
+            ]
+            [ div
+                [ Attr.class "media"
+                ]
+                [
+                div
+                    [ Attr.class "media-content"
+                    ]
+                    [ p []
+                        []
+                    , (case model.status of
+                            Error msg -> viewAlertError msg
+                            None -> div [] []
+                        )
+                    , div
+                        [ Attr.class "field"
+                        ]
+                        [ div
+                            [ Attr.class "control"
+                            ]
+                            [ input
+                                [ Attr.placeholder "Config URL"
+                                , Attr.class "input"
+                                , onInput ChangedConfigURL
+                                ]
+                                []
+                            ]
+                        , p
+                            [ Attr.class "help is-danger"
+                            ]
+                            []
+                        ]
+                    ]
+                ]
+            ]
+        , footer
+            [ Attr.class "modal-card-foot"
+            ]
+            [ button
+                [ Attr.class "button"
+                , onClick ClickedCancelURLModal
+                ]
+                [ text "Cancel" ]
+            , button
+                [ Attr.class "button is-primary"
+                , onClick ClickedFetchURLConfig
+                ]
+                [ text "Fetch" ]
+            ]
+        ]
+    ]
