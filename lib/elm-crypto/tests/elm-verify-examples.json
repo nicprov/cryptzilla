@@ -1,0 +1,9 @@
+{
+  "root": "../src",
+  "tests": [
+      "Crypto.Hash",
+      "Crypto.HMAC",
+      "Crypto.SHA.Chunk",
+      "Crypto.SHA.Preprocess"
+  ]
+}
