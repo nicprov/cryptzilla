@@ -74,7 +74,6 @@ type alias KeyListDecrypted =
 type alias EncryptedFile =
     { encryptedFile: String
     , encryptedPath: String
-    , sha256: String
     , error: String
     }
 
