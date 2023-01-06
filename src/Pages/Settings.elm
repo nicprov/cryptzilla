@@ -206,9 +206,19 @@ update shared req msg model =
             ( model, Request.replaceRoute Gen.Route.Home_ req )
 
         ClickedDownloadConfig ->
-            ( model
-            , Download.string "config.json" "application/json" (encode 0 (Storage.storageToJson shared.storage))
-            )
+            let
+                encryptedStorage = Storage.encrypt shared.storage
+            in
+            case encryptedStorage of
+                Just s ->
+                    ( model
+                    , Download.string "config.json" "application/json" (encode 0 (Storage.storageToJson s))
+                    )
+
+                Nothing ->
+                    ( { model | status = Error "Unable to encrypt credentials" }
+                    , Cmd.none
+                    )
 
 
 -- View
