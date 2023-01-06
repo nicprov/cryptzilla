@@ -9,6 +9,7 @@ port module Storage exposing
     , signOut
     , authenticate
     , decrypt
+    , encrypt
     )
 
 import Json.Decode as Decode exposing (Decoder, decodeValue, field, int, map, map2, nullable, string)
