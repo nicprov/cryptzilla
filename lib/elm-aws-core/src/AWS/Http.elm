@@ -259,7 +259,7 @@ stringBody =
     AWS.Internal.Body.string
 
 
-bytesBody : MimeType -> Bytes -> String -> Body
+bytesBody : MimeType -> Bytes -> Body
 bytesBody =
     AWS.Internal.Body.bytes
 

@@ -64,10 +64,10 @@ app.ports.encryptFile.subscribe(function(message) {
             var keyBase64 = nacl.util.encodeBase64(key);
             var messageBase64 = message["file"];
             const e = encrypt(keyBase64, messageBase64)
-            app.ports.encryptedFile.send({encryptedFile:e, encryptedPath: rclone.Path.encrypt(message["name"]), sha256: CryptoJS.SHA256(nacl.util.decodeBase64(e)).toString(), error: ""});
+            app.ports.encryptedFile.send({encryptedFile:e, encryptedPath: rclone.Path.encrypt(message["name"]), error: ""});
         });
     }).catch(error => {
-        app.ports.encryptedFile.send({encryptedFile:"", encryptedPath: "", sha256: "", error: error.toString()});
+        app.ports.encryptedFile.send({encryptedFile:"", encryptedPath: "", error: error.toString()});
     })
 })
 

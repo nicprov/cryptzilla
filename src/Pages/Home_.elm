@@ -175,14 +175,14 @@ putFolder account encryptedFileName=
         |> S3.send account
         |> Task.attempt ReceivedPutFolder
 
-putBytesObject : S3.Types.Account -> Bytes -> String -> String -> Cmd Msg
-putBytesObject account encryptedFile encryptedFileName sha256=
+putBytesObject : S3.Types.Account -> Bytes -> String -> Cmd Msg
+putBytesObject account encryptedFile encryptedFileName =
     let
         bucket = (case (head account.buckets) of
             Just b -> b
             Nothing -> ""
             )
-        body = S3.bytesBody "application/octet-stream" encryptedFile sha256
+        body = S3.bytesBody "application/octet-stream" encryptedFile
     in
     S3.putBytesObject bucket encryptedFileName body
         |> S3.send account
@@ -405,7 +405,7 @@ update shared req msg model =
                     case Base64.toBytes file.encryptedFile of
                         Just b ->
                             ( { model | key = file.encryptedPath, status = Loading "Uploading file..." }
-                            , putBytesObject acc b file.encryptedPath file.sha256
+                            , putBytesObject acc b file.encryptedPath
                             )
 
                         Nothing ->
