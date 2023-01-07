@@ -1249,12 +1249,12 @@ viewFile shared model key =
             , Attr.id "single-actions"
             ]
             [ span []
-                (viewDropdown shared model key)
+                (viewDropdown shared model key False)
             ]
         ]
 
-viewDropdown: Shared.Model -> Model -> KeyInfoDecrypted -> List (Html Msg)
-viewDropdown shared model key =
+viewDropdown: Shared.Model -> Model -> KeyInfoDecrypted -> Bool -> List (Html Msg)
+viewDropdown shared model key isAFolder =
     [ div
         [ Attr.attribute "data-v-081c0a81" ""
         , if key.keyDecrypted == model.expandedItem then
@@ -1301,24 +1301,27 @@ viewDropdown shared model key =
                 [ Attr.attribute "role" "list"
                 , Attr.class "dropdown-content"
                 ]
-                [ a
-                    [ Attr.attribute "data-v-081c0a81" ""
-                    , Attr.attribute "role" "listitem"
-                    , Attr.tabindex 0
-                    , Attr.class "dropdown-item"
-                    , Attr.href "#"
-                    , onClick (ClickedDownload key)
-                    ]
-                    [ span
+                [ if not isAFolder then
+                    a
                         [ Attr.attribute "data-v-081c0a81" ""
-                        , Attr.class "icon is-small"
+                        , Attr.attribute "role" "listitem"
+                        , Attr.tabindex 0
+                        , Attr.class "dropdown-item"
+                        , Attr.href "#"
+                        , onClick (ClickedDownload key)
                         ]
-                        [ i
-                            [ Attr.class "fas fa-download"
+                        [ span
+                            [ Attr.attribute "data-v-081c0a81" ""
+                            , Attr.class "icon is-small"
                             ]
-                            []
-                        ]
-                    , text " Download" ]
+                            [ i
+                                [ Attr.class "fas fa-download"
+                                ]
+                                []
+                            ]
+                        , text " Download" ]
+                 else
+                    div [] []
                 , a
                     [ Attr.attribute "data-v-081c0a81" ""
                     , Attr.attribute "role" "listitem"
@@ -1337,41 +1340,44 @@ viewDropdown shared model key =
                             []
                         ]
                     , text " Delete" ]
-                , a [ Attr.attribute "data-v-081c0a81" ""
-                    , Attr.attribute "role" "listitem"
-                    , Attr.tabindex 0
-                    , Attr.class "dropdown-item"
-                    , Attr.href "#"
-                    , onClick ClickedCopyURL
-                    ]
-                    [ node "clipboard-copy"
-                        [ (case shared.storage.account of
-                             Just acc ->
-                                 case (List.head acc.buckets) of
-                                     Just bucket ->
-                                         case acc.region of
-                                             Just region ->
-                                                     Attr.value ("https://" ++ bucket ++ "." ++ region ++ "digitaloceanspaces.com/" ++ key.keyEncrypted) -- https://test-onintime.nyc3.digitaloceanspaces.com/
-                                             Nothing ->
-                                                 Attr.value ""
-                                     Nothing ->
-                                         Attr.value ""
-                             Nothing ->
-                                 Attr.value ""
-
-                         )
+                , if not isAFolder then
+                    a [ Attr.attribute "data-v-081c0a81" ""
+                        , Attr.attribute "role" "listitem"
+                        , Attr.tabindex 0
+                        , Attr.class "dropdown-item"
+                        , Attr.href "#"
+                        , onClick ClickedCopyURL
                         ]
-                        [ span
-                            [ Attr.attribute "data-v-081c0a81" ""
-                            , Attr.class "icon is-small"
+                        [ node "clipboard-copy"
+                            [ (case shared.storage.account of
+                                 Just acc ->
+                                     case (List.head acc.buckets) of
+                                         Just bucket ->
+                                             case acc.region of
+                                                 Just region ->
+                                                         Attr.value ("https://" ++ bucket ++ "." ++ region ++ "digitaloceanspaces.com/" ++ key.keyEncrypted) -- https://test-onintime.nyc3.digitaloceanspaces.com/
+                                                 Nothing ->
+                                                     Attr.value ""
+                                         Nothing ->
+                                             Attr.value ""
+                                 Nothing ->
+                                     Attr.value ""
+
+                             )
                             ]
-                            [ i
-                                [ Attr.class "fas fa-clipboard"
+                            [ span
+                                [ Attr.attribute "data-v-081c0a81" ""
+                                , Attr.class "icon is-small"
                                 ]
-                                []
-                            ]
-                        , text " Copy link" ]
-                    ]
+                                [ i
+                                    [ Attr.class "fas fa-clipboard"
+                                    ]
+                                    []
+                                ]
+                            , text " Copy link" ]
+                        ]
+                 else
+                    div [] []
                 ]
             ]
         ]
@@ -1392,7 +1398,7 @@ viewFolderItem shared model key =
         div [] []
 
 viewFolder: Shared.Model -> Model -> KeyInfoDecrypted -> Html Msg
-viewFolder _ model key =
+viewFolder shared model key =
     tr
     [ Attr.draggable "false"
     , Attr.class "file-row type-dir"
@@ -1469,9 +1475,10 @@ viewFolder _ model key =
         [ Attr.attribute "data-v-081c0a81" ""
         , Attr.class ""
         , Attr.id "single-actions"
-        , Attr.disabled True
         ]
-        []
+        [ span []
+            (viewDropdown shared model key True)
+        ]
     ]
 
 viewBack: Model -> List (Html Msg)
