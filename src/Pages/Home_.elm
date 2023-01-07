@@ -199,7 +199,7 @@ removeFiles key =
                 key
             else
                 let
-                    tempName = List.drop 1 (List.reverse file) -- drop file name
+                    tempName = List.reverse (List.drop 1 (List.reverse file)) -- drop file name
                     fixedName = List.map (\m -> m ++ "/") tempName
                 in
                 { key | keyDecrypted = String.concat fixedName}
