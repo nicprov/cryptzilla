@@ -227,7 +227,7 @@ checkContainsSearch search item =
 
 {- Takes a path and creates all permutations of it (excluding the path itself)
 For example: If the path = "test/test2/test3/", the output
-would be ["test/test2/, "test/"] except for KeyInfoDecrypted objects
+would be ["test/test2/, "test/"] except for KeyInfoDecrypted objects instead of strings
 -}
 permutePaths: KeyInfoDecrypted -> List(KeyInfoDecrypted)
 permutePaths keyInfo  =
@@ -241,7 +241,7 @@ permutePaths keyInfo  =
 
             -- Encrypted Key
             splitPathEncrypted = String.split "/" keyInfo.keyEncrypted
-            dropLastItemEncrypted = List.take ((List.length splitPathEncrypted) - 2) splitPathEncrypted -- drop the last item in the list + empty item (because split on "/" adds "" as last item)
+            dropLastItemEncrypted = List.take ((List.length splitPathEncrypted) - 1) splitPathEncrypted -- drop the last item in the list
         in
         if List.length dropLastItemDecrypted == 0 then
             permutePaths { keyInfo | keyDecrypted = "" }
@@ -361,7 +361,7 @@ update shared req msg model =
         ClickedDelete key ->
             case shared.storage.account of
                 Just acc ->
-                    ( { model | expandedItem = "", status = Loading "Deleting file..." }
+                    ( { model | expandedItem = "", selectedList = [], status = Loading "Deleting file..." }
                     , deleteObject acc key
                     )
                 Nothing -> (model, Cmd.none)
@@ -1214,7 +1214,14 @@ viewFile shared model key =
                     , Attr.href "#"
                     ]
                     [ text (if model.fileNameEncrypted then
-                                String.replace model.currentDir "" key.keyEncrypted
+                                let
+                                    encryptedFileNameAsList = String.split "/" key.keyEncrypted
+                                    currentDirAsList = String.split "/" model.currentDir
+                                    onlyName = List.drop ((List.length currentDirAsList) - 1) encryptedFileNameAsList
+                                in
+                                case List.head onlyName of
+                                    Just head -> head
+                                    Nothing -> key.keyEncrypted
                             else
                                 String.replace model.currentDir "" key.keyDecrypted )
                     ]
@@ -1427,9 +1434,13 @@ viewFolder _ model key =
                 ]
                 [ text (if model.fileNameEncrypted then
                             let
-                                name = String.replace model.currentDir "" key.keyEncrypted
+                                encryptedFolderNameAsList = String.split "/" key.keyEncrypted
+                                currentDirAsList = String.split "/" model.currentDir
+                                onlyName = List.drop (List.length currentDirAsList) encryptedFolderNameAsList
                             in
-                            (String.left ((String.length name) - 1) name)
+                            case List.head onlyName of
+                                Just head -> head
+                                Nothing -> key.keyEncrypted
                         else
                             let
                                 name = String.replace model.currentDir "" key.keyDecrypted
