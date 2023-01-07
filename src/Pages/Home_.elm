@@ -14,7 +14,7 @@ import Html exposing (Html, a, button, div, footer, hr, i, img, input, label, li
 import Html.Attributes as Attr
 import Html.Events exposing (onClick, onInput)
 import List exposing (head)
-import List.Extra as LE exposing (uniqueBy)
+import List.Extra as LE exposing (intercalate, uniqueBy)
 import Page
 import Request exposing (Request)
 import S3
@@ -224,6 +224,42 @@ checkContainsSearch search item =
     else
         False
 
+
+{- Takes a path and creates all permutations of it (excluding the path itself)
+For example: If the path = "test/test2/test3/", the output
+would be ["test/test2/, "test/"] except for KeyInfoDecrypted objects
+-}
+permutePaths: KeyInfoDecrypted -> List(KeyInfoDecrypted)
+permutePaths keyInfo  =
+    if keyInfo.keyDecrypted == "" then
+        [] -- base case
+    else
+        let
+            -- Decrypted Key
+            splitPathDecrypted = String.split "/" keyInfo.keyDecrypted
+            dropLastItemDecrypted = List.take ((List.length splitPathDecrypted) - 2) splitPathDecrypted -- drop the last item in the list + empty item (because split on "/" adds "" as last item)
+
+            -- Encrypted Key
+            splitPathEncrypted = String.split "/" keyInfo.keyEncrypted
+            dropLastItemEncrypted = List.take ((List.length splitPathEncrypted) - 2) splitPathEncrypted -- drop the last item in the list + empty item (because split on "/" adds "" as last item)
+        in
+        if List.length dropLastItemDecrypted == 0 then
+            permutePaths { keyInfo | keyDecrypted = "" }
+        else
+            let
+                tmpPathDecrypted = (String.join "/" dropLastItemDecrypted) ++ "/" -- decrypted key
+                tmpPathEncrypted = (String.join "/" dropLastItemEncrypted) ++ "/" -- encrypted key
+                newKeyInfo = { keyEncrypted = tmpPathEncrypted
+                             , keyDecrypted = tmpPathDecrypted
+                             , lastModified = keyInfo.lastModified
+                             , eTag = keyInfo.eTag
+                             , size = keyInfo.size
+                             , storageClass = keyInfo.storageClass
+                             , owner = keyInfo.owner
+                             }
+            in
+            newKeyInfo :: permutePaths newKeyInfo
+
 update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
 update shared req msg model =
     case msg of
@@ -282,7 +318,9 @@ update shared req msg model =
                 let
                     reducedFolder = List.map removeFiles keyList.keys
                     folders = List.filter isFolder reducedFolder
-                    folderList = uniqueBy (\k -> k.keyDecrypted) folders
+                    permutationsOfFolder = intercalate [] (List.map permutePaths folders)
+                    allFoldersJoined = List.append folders permutationsOfFolder
+                    folderList = uniqueBy (\k -> k.keyDecrypted) allFoldersJoined
                 in
                 ( { model
                     | keyList = Just keyList
