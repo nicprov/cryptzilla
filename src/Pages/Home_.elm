@@ -394,7 +394,7 @@ update shared req msg model =
         FileConvertedToBytes bytes ->
             case Base64.fromBytes bytes of
                 Just b ->
-                    ( { model | status = Loading "Encrypting file..."}, encryptFile (FileDescriptionMessage b model.key shared.storage.password shared.storage.salt))
+                    ( { model | status = Loading "Encrypting file..."}, encryptFile (FileDescriptionMessage b (model.currentDir ++ model.key) shared.storage.password shared.storage.salt))
 
                 Nothing ->
                     ( { model | status = None }, Cmd.none) -- TODO show error message
