@@ -389,7 +389,7 @@ update shared req msg model =
             )
 
         FileSelected file ->
-            ( ( { model | key = (name file)}, Task.perform FileConvertedToBytes (File.toBytes file)))
+            ( { model | key = (name file), status = Loading "Converting to bytes..."}, Task.perform FileConvertedToBytes (File.toBytes file))
 
         FileConvertedToBytes bytes ->
             case Base64.fromBytes bytes of
