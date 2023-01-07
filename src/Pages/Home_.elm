@@ -1441,8 +1441,9 @@ viewFolder shared model key =
                 [ text (if model.fileNameEncrypted then
                             let
                                 encryptedFolderNameAsList = String.split "/" key.keyEncrypted
+                                encryptedFolderNameWithoutTailingWhiteSpace = List.take (List.length encryptedFolderNameAsList - 1) encryptedFolderNameAsList
                                 currentDirAsList = String.split "/" model.currentDir
-                                onlyName = List.drop (List.length currentDirAsList) encryptedFolderNameAsList
+                                onlyName = List.drop ((List.length currentDirAsList) - 1) encryptedFolderNameWithoutTailingWhiteSpace
                             in
                             case List.head onlyName of
                                 Just head -> head
