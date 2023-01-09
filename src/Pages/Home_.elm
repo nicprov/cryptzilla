@@ -35,13 +35,13 @@ page shared req =
         }
 
 type alias Model =
-    { keyList: Maybe KeyListDecrypted
-    , tempKeyList: Maybe KeyListDecrypted -- Used for search purposes to not overwrite original file list
-    , loadingKeyList: List KeyInfo -- Used to gradually fetch all the keys before sending them to be decrypted
+    { keys: List KeyInfoDecrypted
+    , tempKeys: List KeyInfoDecrypted -- Used for search purposes to not overwrite original file list
+    , loadingKeys: List KeyInfo -- Used to gradually load all keys to display
     , currentDir: String
-    , folderList: List(KeyInfoDecrypted)
-    , tempFolderList: List(KeyInfoDecrypted) -- Used for search purposes to not overwrite original folder list
-    , selectedList: List(KeyInfoDecrypted)
+    , folderList: List KeyInfoDecrypted
+    , tempFolderList: List KeyInfoDecrypted -- Used for search purposes to not overwrite original folder list
+    , selectedList: List KeyInfoDecrypted
     , expandedItem: String
     , key: String
     , text: String
@@ -62,9 +62,9 @@ type Status
 init : Request -> Shared.Model -> (Model, Cmd Msg)
 init req shared =
     let
-        tmpModel = { keyList = Nothing
-                   , tempKeyList = Nothing
-                   , loadingKeyList = []
+        tmpModel = { keys = []
+                   , tempKeys = []
+                   , loadingKeys = []
                    , currentDir = ""
                    , folderList = []
                    , tempFolderList = []
@@ -282,13 +282,13 @@ update shared req msg model =
                     , Cmd.none
                     )
 
-                Ok keys ->
-                    if keys.isTruncated then -- Need to keep fetching keys
+                Ok keyList ->
+                    if keyList.isTruncated then -- Need to keep fetching keys
                         case shared.storage.account of
                             Just acc ->
-                                case keys.nextMarker of
+                                case keyList.nextMarker of
                                     Just marker ->
-                                        ( { model | loadingKeyList = List.append keys.keys model.loadingKeyList }, listBucket acc marker)
+                                        ( { model | loadingKeys = List.append keyList.keys model.loadingKeys }, listBucket acc marker)
 
                                     Nothing ->
                                         ( { model | status = Failure "Unable to get nextMarker" }, Cmd.none )
@@ -296,9 +296,9 @@ update shared req msg model =
                             Nothing -> (model, Cmd.none)
                     else
                         let
-                            tempKeys = List.append keys.keys model.loadingKeyList
+                            tempKeys = List.append keyList.keys model.loadingKeys
                         in
-                        ( model, decryptKeyList (KeyListDescriptionMessage { keys | keys = tempKeys} shared.storage.password shared.storage.salt))
+                        ( model, decryptKeyList (KeyListDescriptionMessage tempKeys shared.storage.password shared.storage.salt))
 
         ClickedFolder folder ->
             ( { model | currentDir = folder, expandedItem = "" }, Cmd.none)
@@ -331,21 +331,21 @@ update shared req msg model =
                 Nothing ->
                     (model, Cmd.none)
 
-        ReceivedDecryptedKeyList keyList ->
-            if keyList.error == "" then -- No error
+        ReceivedDecryptedKeyList decryptedKeys ->
+            if decryptedKeys.error == "" then -- No error
                 let
-                    reducedFolder = List.map removeFiles keyList.keys
+                    reducedFolder = List.map removeFiles decryptedKeys.keys
                     folders = List.filter isFolder reducedFolder
                     permutationsOfFolder = intercalate [] (List.map permutePaths folders)
                     allFoldersJoined = List.append folders permutationsOfFolder
                     folderList = uniqueBy (\k -> k.keyDecrypted) allFoldersJoined
                 in
                 ( { model
-                    | keyList = Just keyList
-                    , tempKeyList = Just keyList
+                    | keys = decryptedKeys.keys
+                    , tempKeys = decryptedKeys.keys
                     , folderList = folderList
                     , tempFolderList = folderList
-                    , status = (if (List.length keyList.keys == 0) then
+                    , status = (if (List.length decryptedKeys.keys == 0) then
                                     Failure "No files to show"
                                 else
                                     None
@@ -354,7 +354,7 @@ update shared req msg model =
                 , Cmd.none
                 )
             else
-                ( { model | status = Failure keyList.error }, Cmd.none)
+                ( { model | status = Failure decryptedKeys.error }, Cmd.none)
 
         ClickedSelected keyInfo ->
             if List.member keyInfo model.selectedList then
@@ -564,19 +564,13 @@ update shared req msg model =
                 ( { model | fileNameEncrypted = True }, Cmd.none )
 
         ChangedSearch search ->
-            case model.keyList of
-                Just keyList ->
-                    let
-                        filteredKeys = List.filter (checkContainsSearch search) keyList.keys
-                        newKeyList = { keyList | keys = filteredKeys }
-                        reducedFolder = List.map removeFiles filteredKeys
-                        folders = List.filter isFolder reducedFolder
-                        folderList = uniqueBy (\k -> k.keyDecrypted) folders
-                    in
-                    ( { model | tempKeyList = Just newKeyList, tempFolderList = folderList, search = search }, Cmd.none )
-
-                Nothing ->
-                    ( model, Cmd.none )
+            let
+                filteredKeys = List.filter (checkContainsSearch search) model.keys
+                reducedFolder = List.map removeFiles filteredKeys
+                folders = List.filter isFolder reducedFolder
+                folderList = uniqueBy (\k -> k.keyDecrypted) folders
+            in
+            ( { model | tempKeys = filteredKeys, tempFolderList = folderList, search = search }, Cmd.none )
 
 
 -- Listen for shared model changes
@@ -1057,16 +1051,13 @@ viewMain shared model account =
                                             ]
                                         ]
                                     , tbody []
-                                        (case model.tempKeyList of
-                                            Just keyList ->
-                                                if List.length keyList.keys /= 0 then
-                                                    (List.append
-                                                        (List.append (viewBack model) (List.map (viewFolderItem shared model) model.tempFolderList))
-                                                        (List.map (viewFileItem shared model) keyList.keys)
-                                                    )
-                                                else
-                                                    [div [] []]
-                                            Nothing -> []
+                                        (if List.length model.tempKeys /= 0 then
+                                             (List.append
+                                                 (List.append (viewBack model) (List.map (viewFolderItem shared model) model.tempFolderList))
+                                                 (List.map (viewFileItem shared model) model.tempKeys)
+                                             )
+                                         else
+                                             [div [] []]
                                         )
                                     ]
                                 ]

@@ -17,26 +17,24 @@ app.ports.save.subscribe(storage => {
 
 
 app.ports.decryptKeyList.subscribe(function(message) {
-    var keyList = message["keyList"]
+    var keys = message["keys"]
     window.rclone.Rclone({
-        password: message["key"],
+        password: message["password"],
         salt: message["salt"]
     }).then(rclone => {
-        keyList.keys.forEach(function(key){
+        keys.forEach(function(key){
             key["keyEncrypted"] = key.key
             key["keyDecrypted"] = rclone.Path.decrypt(key.key);
             delete key.key
         });
-        keyList.error = "";
-        app.ports.decryptedKeyList.send(keyList);
+        app.ports.decryptedKeyList.send({keys: keys, error: ""});
     }).catch(error => {
-        keyList.keys.forEach(function(key){
+        keys.forEach(function(key){
             key["keyEncrypted"] = ""
             key["keyDecrypted"] = "";
             delete key.key
         });
-        keyList.error = error.toString();
-        app.ports.decryptedKeyList.send(keyList);
+        app.ports.decryptedKeyList.send({keys: keys, error: error.toString()});
     })
 })
 

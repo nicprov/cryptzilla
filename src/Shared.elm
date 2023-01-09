@@ -15,8 +15,8 @@ port module Shared exposing
     , encryptedFileName
     , KeyListDescriptionMessage
     , FileDescriptionMessage
-    , KeyListDecrypted
     , KeyInfoDecrypted
+    , KeyListDecrypted
     , EncryptedFile
     )
 
@@ -38,8 +38,8 @@ type alias Model =
     }
 
 type alias KeyListDescriptionMessage =
-    { keyList: S3.Types.KeyList
-    , key: String
+    { keys: List S3.Types.KeyInfo
+    , password: String
     , salt: String
     }
 
@@ -61,15 +61,10 @@ type alias KeyInfoDecrypted =
     }
 
 type alias KeyListDecrypted =
-    { name : String
-    , prefix : Maybe String
-    , marker : Maybe String
-    , nextMarker : Maybe String
-    , maxKeys : Int
-    , isTruncated : Bool
-    , keys : List KeyInfoDecrypted
+    { keys : List KeyInfoDecrypted
     , error: String
     }
+
 
 type alias EncryptedFile =
     { encryptedFile: String
