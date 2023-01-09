@@ -18,7 +18,7 @@ import List.Extra as LE exposing (intercalate, uniqueBy)
 import Page
 import Request exposing (Request)
 import S3
-import S3.Types exposing (Error, KeyList, QueryElement(..))
+import S3.Types exposing (Error, KeyInfo, KeyList, QueryElement(..))
 import Shared exposing (EncryptedFile, FileDescriptionMessage, KeyInfoDecrypted, KeyListDecrypted, KeyListDescriptionMessage, decryptFile, decryptKeyList, encryptFile, encryptFileName)
 import Storage
 import Task
@@ -35,12 +35,13 @@ page shared req =
         }
 
 type alias Model =
-    { keyList: Maybe KeyListDecrypted
-    , tempKeyList: Maybe KeyListDecrypted -- Used for search purposes to not overwrite original file list
+    { keys: List KeyInfoDecrypted
+    , tempKeys: List KeyInfoDecrypted -- Used for search purposes to not overwrite original file list
+    , loadingKeys: List KeyInfo -- Used to gradually load all keys to display
     , currentDir: String
-    , folderList: List(KeyInfoDecrypted)
-    , tempFolderList: List(KeyInfoDecrypted) -- Used for search purposes to not overwrite original folder list
-    , selectedList: List(KeyInfoDecrypted)
+    , folderList: List KeyInfoDecrypted
+    , tempFolderList: List KeyInfoDecrypted -- Used for search purposes to not overwrite original folder list
+    , selectedList: List KeyInfoDecrypted
     , expandedItem: String
     , key: String
     , text: String
@@ -61,8 +62,9 @@ type Status
 init : Request -> Shared.Model -> (Model, Cmd Msg)
 init req shared =
     let
-        tmpModel = { keyList = Nothing
-                   , tempKeyList = Nothing
+        tmpModel = { keys = []
+                   , tempKeys = []
+                   , loadingKeys = []
                    , currentDir = ""
                    , folderList = []
                    , tempFolderList = []
@@ -82,7 +84,7 @@ init req shared =
         ( { tmpModel | status = Loading "Loading..." }
         , case shared.storage.account of
             Just account ->
-                listBucket account
+                listBucket account ""
             Nothing ->
                 Request.replaceRoute Gen.Route.Login req -- Redirect to login page if account is none
         )
@@ -126,8 +128,8 @@ type Msg
     | ReceivedEncryptedFile EncryptedFile
     | ReceivedEncryptedFileName (String, String)
 
-listBucket : S3.Types.Account -> Cmd Msg
-listBucket account =
+listBucket : S3.Types.Account -> String -> Cmd Msg
+listBucket account marker =
     let
         bucket = (case (head account.buckets) of
             Just b -> b
@@ -135,6 +137,7 @@ listBucket account =
             )
     in
     S3.listKeys bucket
+        |> S3.addQuery [ Marker marker ]
         |> S3.send account
         |> Task.attempt ReceiveListBucket
 
@@ -268,19 +271,34 @@ update shared req msg model =
             case shared.storage.account of
                 Just acc ->
                     ( { model | status = Loading "Getting bucket listing..." }
-                    , listBucket acc
+                    , listBucket acc ""
                     )
                 Nothing -> (model, Cmd.none)
 
         ReceiveListBucket result ->
             case result of
-                Err err ->
+                Err _ ->
                     ( { model | status = Failure "Unable to list files, invalid credentials" }
                     , Cmd.none
                     )
 
-                Ok keys ->
-                    ( model, decryptKeyList (KeyListDescriptionMessage keys shared.storage.password shared.storage.salt))
+                Ok keyList ->
+                    if keyList.isTruncated then -- Need to keep fetching keys
+                        case shared.storage.account of
+                            Just acc ->
+                                case keyList.nextMarker of
+                                    Just marker ->
+                                        ( { model | loadingKeys = List.append keyList.keys model.loadingKeys }, listBucket acc marker)
+
+                                    Nothing ->
+                                        ( { model | status = Failure "Unable to get nextMarker" }, Cmd.none )
+
+                            Nothing -> (model, Cmd.none)
+                    else
+                        let
+                            tempKeys = List.append keyList.keys model.loadingKeys
+                        in
+                        ( model, decryptKeyList (KeyListDescriptionMessage tempKeys shared.storage.password shared.storage.salt))
 
         ClickedFolder folder ->
             ( { model | currentDir = folder, expandedItem = "" }, Cmd.none)
@@ -313,21 +331,21 @@ update shared req msg model =
                 Nothing ->
                     (model, Cmd.none)
 
-        ReceivedDecryptedKeyList keyList ->
-            if keyList.error == "" then -- No error
+        ReceivedDecryptedKeyList decryptedKeys ->
+            if decryptedKeys.error == "" then -- No error
                 let
-                    reducedFolder = List.map removeFiles keyList.keys
+                    reducedFolder = List.map removeFiles decryptedKeys.keys
                     folders = List.filter isFolder reducedFolder
                     permutationsOfFolder = intercalate [] (List.map permutePaths folders)
                     allFoldersJoined = List.append folders permutationsOfFolder
                     folderList = uniqueBy (\k -> k.keyDecrypted) allFoldersJoined
                 in
                 ( { model
-                    | keyList = Just keyList
-                    , tempKeyList = Just keyList
+                    | keys = decryptedKeys.keys
+                    , tempKeys = decryptedKeys.keys
                     , folderList = folderList
                     , tempFolderList = folderList
-                    , status = (if (List.length keyList.keys == 0) then
+                    , status = (if (List.length decryptedKeys.keys == 0) then
                                     Failure "No files to show"
                                 else
                                     None
@@ -336,7 +354,7 @@ update shared req msg model =
                 , Cmd.none
                 )
             else
-                ( { model | status = Failure keyList.error }, Cmd.none)
+                ( { model | status = Failure decryptedKeys.error }, Cmd.none)
 
         ClickedSelected keyInfo ->
             if List.member keyInfo model.selectedList then
@@ -378,7 +396,7 @@ update shared req msg model =
                     case shared.storage.account of
                         Just acc ->
                             ( { model | expandedItem = "", status = Success "Successfully deleted object" }
-                            , listBucket acc
+                            , listBucket acc ""
                             )
                         Nothing -> (model, Cmd.none)
 
@@ -462,7 +480,7 @@ update shared req msg model =
                     case shared.storage.account of
                         Just acc ->
                             ( { model | status = Success "Successfully uploaded file" }
-                            , listBucket acc
+                            , listBucket acc ""
                             )
 
                         Nothing -> ( { model | status = None }, Cmd.none)
@@ -495,7 +513,7 @@ update shared req msg model =
                      case shared.storage.account of
                         Just acc ->
                             ( { model | status = Success "Successfully created folder" }
-                            , listBucket acc
+                            , listBucket acc ""
                             )
 
                         Nothing -> ( { model | status = None }, Cmd.none)
@@ -518,7 +536,7 @@ update shared req msg model =
             case shared.storage.account of
                 Just acc ->
                     ( { model | expandedItem = "", status = Loading "Reloading items" }
-                    , listBucket acc
+                    , listBucket acc ""
                     )
                 Nothing -> (model, Cmd.none)
 
@@ -546,19 +564,13 @@ update shared req msg model =
                 ( { model | fileNameEncrypted = True }, Cmd.none )
 
         ChangedSearch search ->
-            case model.keyList of
-                Just keyList ->
-                    let
-                        filteredKeys = List.filter (checkContainsSearch search) keyList.keys
-                        newKeyList = { keyList | keys = filteredKeys }
-                        reducedFolder = List.map removeFiles filteredKeys
-                        folders = List.filter isFolder reducedFolder
-                        folderList = uniqueBy (\k -> k.keyDecrypted) folders
-                    in
-                    ( { model | tempKeyList = Just newKeyList, tempFolderList = folderList, search = search }, Cmd.none )
-
-                Nothing ->
-                    ( model, Cmd.none )
+            let
+                filteredKeys = List.filter (checkContainsSearch search) model.keys
+                reducedFolder = List.map removeFiles filteredKeys
+                folders = List.filter isFolder reducedFolder
+                folderList = uniqueBy (\k -> k.keyDecrypted) folders
+            in
+            ( { model | tempKeys = filteredKeys, tempFolderList = folderList, search = search }, Cmd.none )
 
 
 -- Listen for shared model changes
@@ -1039,16 +1051,13 @@ viewMain shared model account =
                                             ]
                                         ]
                                     , tbody []
-                                        (case model.tempKeyList of
-                                            Just keyList ->
-                                                if List.length keyList.keys /= 0 then
-                                                    (List.append
-                                                        (List.append (viewBack model) (List.map (viewFolderItem shared model) model.tempFolderList))
-                                                        (List.map (viewFileItem shared model) keyList.keys)
-                                                    )
-                                                else
-                                                    [div [] []]
-                                            Nothing -> []
+                                        (if List.length model.tempKeys /= 0 then
+                                             (List.append
+                                                 (List.append (viewBack model) (List.map (viewFolderItem shared model) model.tempFolderList))
+                                                 (List.map (viewFileItem shared model) model.tempKeys)
+                                             )
+                                         else
+                                             [div [] []]
                                         )
                                     ]
                                 ]
