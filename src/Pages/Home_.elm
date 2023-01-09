@@ -18,7 +18,7 @@ import List.Extra as LE exposing (intercalate, uniqueBy)
 import Page
 import Request exposing (Request)
 import S3
-import S3.Types exposing (Error, KeyList, QueryElement(..))
+import S3.Types exposing (Error, KeyInfo, KeyList, QueryElement(..))
 import Shared exposing (EncryptedFile, FileDescriptionMessage, KeyInfoDecrypted, KeyListDecrypted, KeyListDescriptionMessage, decryptFile, decryptKeyList, encryptFile, encryptFileName)
 import Storage
 import Task
@@ -37,6 +37,7 @@ page shared req =
 type alias Model =
     { keyList: Maybe KeyListDecrypted
     , tempKeyList: Maybe KeyListDecrypted -- Used for search purposes to not overwrite original file list
+    , loadingKeyList: List KeyInfo -- Used to gradually fetch all the keys before sending them to be decrypted
     , currentDir: String
     , folderList: List(KeyInfoDecrypted)
     , tempFolderList: List(KeyInfoDecrypted) -- Used for search purposes to not overwrite original folder list
@@ -63,6 +64,7 @@ init req shared =
     let
         tmpModel = { keyList = Nothing
                    , tempKeyList = Nothing
+                   , loadingKeyList = []
                    , currentDir = ""
                    , folderList = []
                    , tempFolderList = []
@@ -82,7 +84,7 @@ init req shared =
         ( { tmpModel | status = Loading "Loading..." }
         , case shared.storage.account of
             Just account ->
-                listBucket account
+                listBucket account ""
             Nothing ->
                 Request.replaceRoute Gen.Route.Login req -- Redirect to login page if account is none
         )
@@ -126,8 +128,8 @@ type Msg
     | ReceivedEncryptedFile EncryptedFile
     | ReceivedEncryptedFileName (String, String)
 
-listBucket : S3.Types.Account -> Cmd Msg
-listBucket account =
+listBucket : S3.Types.Account -> String -> Cmd Msg
+listBucket account marker =
     let
         bucket = (case (head account.buckets) of
             Just b -> b
@@ -135,6 +137,7 @@ listBucket account =
             )
     in
     S3.listKeys bucket
+        |> S3.addQuery [ Marker marker ]
         |> S3.send account
         |> Task.attempt ReceiveListBucket
 
@@ -268,19 +271,34 @@ update shared req msg model =
             case shared.storage.account of
                 Just acc ->
                     ( { model | status = Loading "Getting bucket listing..." }
-                    , listBucket acc
+                    , listBucket acc ""
                     )
                 Nothing -> (model, Cmd.none)
 
         ReceiveListBucket result ->
             case result of
-                Err err ->
+                Err _ ->
                     ( { model | status = Failure "Unable to list files, invalid credentials" }
                     , Cmd.none
                     )
 
                 Ok keys ->
-                    ( model, decryptKeyList (KeyListDescriptionMessage keys shared.storage.password shared.storage.salt))
+                    if keys.isTruncated then -- Need to keep fetching keys
+                        case shared.storage.account of
+                            Just acc ->
+                                case keys.nextMarker of
+                                    Just marker ->
+                                        ( { model | loadingKeyList = List.append keys.keys model.loadingKeyList }, listBucket acc marker)
+
+                                    Nothing ->
+                                        ( { model | status = Failure "Unable to get nextMarker" }, Cmd.none )
+
+                            Nothing -> (model, Cmd.none)
+                    else
+                        let
+                            tempKeys = List.append keys.keys model.loadingKeyList
+                        in
+                        ( model, decryptKeyList (KeyListDescriptionMessage { keys | keys = tempKeys} shared.storage.password shared.storage.salt))
 
         ClickedFolder folder ->
             ( { model | currentDir = folder, expandedItem = "" }, Cmd.none)
@@ -378,7 +396,7 @@ update shared req msg model =
                     case shared.storage.account of
                         Just acc ->
                             ( { model | expandedItem = "", status = Success "Successfully deleted object" }
-                            , listBucket acc
+                            , listBucket acc ""
                             )
                         Nothing -> (model, Cmd.none)
 
@@ -462,7 +480,7 @@ update shared req msg model =
                     case shared.storage.account of
                         Just acc ->
                             ( { model | status = Success "Successfully uploaded file" }
-                            , listBucket acc
+                            , listBucket acc ""
                             )
 
                         Nothing -> ( { model | status = None }, Cmd.none)
@@ -495,7 +513,7 @@ update shared req msg model =
                      case shared.storage.account of
                         Just acc ->
                             ( { model | status = Success "Successfully created folder" }
-                            , listBucket acc
+                            , listBucket acc ""
                             )
 
                         Nothing -> ( { model | status = None }, Cmd.none)
@@ -518,7 +536,7 @@ update shared req msg model =
             case shared.storage.account of
                 Just acc ->
                     ( { model | expandedItem = "", status = Loading "Reloading items" }
-                    , listBucket acc
+                    , listBucket acc ""
                     )
                 Nothing -> (model, Cmd.none)
 
