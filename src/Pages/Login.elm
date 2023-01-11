@@ -1,6 +1,7 @@
 module Pages.Login exposing (Model, Msg, page)
 
 import Common.Alert exposing (viewAlertError)
+import Common.Footer exposing (viewFooter)
 import File exposing (File)
 import File.Select as Select
 import Gen.Route
@@ -601,6 +602,7 @@ viewMain model =
                     ]
                 ]
             ]
+        , viewFooter
         ]
 
 viewConfigURLModal: Model -> Html Msg
