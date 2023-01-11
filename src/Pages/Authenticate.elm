@@ -1,6 +1,7 @@
 module Pages.Authenticate exposing (Model, Msg, page)
 
 import Common.Alert exposing (viewAlertError)
+import Common.Footer exposing (viewFooter)
 import Gen.Route
 import Hotkeys exposing (onKeyCode)
 import Html exposing (Html, a, br, button, div, form, h1, hr, i, img, input, label, li, main_, ol, option, p, select, small, span, text)
@@ -202,4 +203,5 @@ viewMain model =
                     ]
                 ]
             ]
+        , viewFooter
         ]

@@ -5,6 +5,7 @@ import Bytes exposing (Bytes)
 import Bytes.Decode as Decode
 import Bytes.Encode as Encode
 import Common.Alert exposing (viewAlertError, viewAlertInfo, viewAlertSuccess)
+import Common.Footer exposing (viewFooter)
 import Dict exposing (Dict)
 import File exposing (File, name)
 import File.Download as Download
@@ -1080,6 +1081,7 @@ viewMain shared model account =
                             viewFolderModal
                           else
                             div [] []
+                        , viewFooter
                         ]
                     ]
                 ]
