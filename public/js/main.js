@@ -22,7 +22,6 @@ app.ports.decryptKeyList.subscribe(function(message) {
         password: message["password"],
         salt: message["salt"]
     }).then(rclone => {
-        console.log(message.keys);
         keys.forEach(function(key){
             key["keyEncrypted"] = key.key
             key["keyDecrypted"] = rclone.Path.decrypt(key.key);
