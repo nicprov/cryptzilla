@@ -45,8 +45,8 @@ app.ports.decryptFile.subscribe(function(message) {
         else {
             var keyBase64 = nacl.util.encodeBase64(key);
             var messageBase64 = message["file"];
-            const d = decrypt(keyBase64, messageBase64)
-            app.ports.decryptedFile.send([d, ""]);
+            const r = decrypt(keyBase64, messageBase64)
+            app.ports.decryptedFile.send(r);
         }
     });
 })
@@ -57,12 +57,13 @@ app.ports.encryptFile.subscribe(function(message) {
         salt: message["salt"]
     }).then(rclone => {
         generateKey(message["key"], message["salt"], (error, key) => {
+            generatedError = "";
             if (error != null)
-                throw new Error("Unable to generate key");
+                generatedError = "Unable to generate key";
             var keyBase64 = nacl.util.encodeBase64(key);
             var messageBase64 = message["file"];
             const e = encrypt(keyBase64, messageBase64)
-            app.ports.encryptedFile.send({encryptedFile:e, encryptedPath: rclone.Path.encrypt(message["name"]), error: ""});
+            app.ports.encryptedFile.send({encryptedFile:e, encryptedPath: rclone.Path.encrypt(message["name"]), error: generatedError});
         });
     }).catch(error => {
         app.ports.encryptedFile.send({encryptedFile:"", encryptedPath: "", error: error.toString()});
@@ -102,7 +103,7 @@ function decrypt(key, messageWithNonce){
 
     // Test if this is a valid rClone file
     if (magic !== 'RCLONE\x00\x00') {
-        throw new Error("Magic is wrong");
+        return [ "", "Magic is wrong" ]
     }
 
     const nonce = messageWithNonceAsUint8Array.slice(8, nacl.secretbox.nonceLength + 8);
@@ -113,10 +114,10 @@ function decrypt(key, messageWithNonce){
 
     const decrypted = nacl.secretbox.open(message, nonce, keyUint8Array);
     if (!decrypted) {
-        throw new Error("Could not decrypt message");
+        return [ "", "Could not decrypt message" ];
     }
 
-    return nacl.util.encodeBase64(decrypted);
+    return [ nacl.util.encodeBase64(decrypted), "" ]
 }
 
 function generateKey(password, salt, callback){
