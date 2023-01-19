@@ -61,6 +61,7 @@ init req shared =
 type Msg
     = ChangeEncryptionKey String
     | ClickedDecrypt
+    | ClickedLogout
     | ClickedHideEncryptionKey
     | PressedEnter
 
@@ -91,6 +92,9 @@ update shared req msg model =
 
         PressedEnter ->
             authenticate shared model
+
+        ClickedLogout ->
+            ( model, Storage.signOut shared.storage )
 
 -- View
 
@@ -192,6 +196,13 @@ viewMain model =
                                 , Attr.class "is-flex is-justify-end"
                                 ]
                                 [ button
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "button is-primary"
+                                    , Attr.style "margin-right" "10px"
+                                    , onClick ClickedLogout
+                                    ]
+                                    [ text "Log out" ]
+                                , button
                                     [ Attr.attribute "data-v" ""
                                     , Attr.class "button is-primary"
                                     , onClick ClickedDecrypt
