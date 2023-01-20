@@ -13,7 +13,7 @@
 module S3.Types exposing
     ( Error(..), Account
     , Bucket, Key, Mimetype
-    , StorageClass, Owner, KeyInfo, KeyList
+    , StorageClass, Owner, KeyInfo, KeyList, CommonPrefixes
     , Query, QueryElement(..), CannedAcl(..)
     , aclToString
     )
@@ -125,8 +125,12 @@ type alias KeyList =
     , maxKeys : Int
     , isTruncated : Bool
     , keys : List KeyInfo
+    , prefixes: List CommonPrefixes
     }
 
+type alias CommonPrefixes =
+    { prefix: String
+    }
 
 {-| Values for the XAmzAcl Query type.
 -}

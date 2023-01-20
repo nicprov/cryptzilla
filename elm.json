@@ -15,6 +15,7 @@
             "NoRedInk/elm-json-decode-pipeline": "1.0.1",
             "TSFoster/elm-bytes-extra": "1.3.0",
             "billstclair/elm-crypto-string": "3.0.1",
+            "billstclair/elm-xml-eeue56": "2.1.0",
             "billstclair/elm-xml-extra": "3.0.0",
             "chelovek0v/bbase64": "1.0.1",
             "danfishgold/base64-bytes": "1.1.0",
@@ -41,7 +42,6 @@
         },
         "indirect": {
             "billstclair/elm-crypto-aes": "1.0.10",
-            "billstclair/elm-xml-eeue56": "2.1.0",
             "elm/parser": "1.1.0",
             "elm/virtual-dom": "1.0.2",
             "elm-community/array-extra": "2.6.0",
