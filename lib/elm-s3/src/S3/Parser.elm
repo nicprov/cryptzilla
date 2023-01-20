@@ -13,14 +13,7 @@
 module S3.Parser exposing (parseListBucketResponse)
 
 import Json.Decode as JD exposing (Decoder)
-import S3.Types
-    exposing
-        ( Error(..)
-        , KeyInfo
-        , KeyList
-        , Owner
-        , StorageClass
-        )
+import S3.Types exposing (CommonPrefixes, Error(..), KeyInfo, KeyList, Owner, StorageClass)
 import Xml.Extra
     exposing
         ( Required(..)
@@ -97,6 +90,11 @@ bucketDecoder =
         (optionalTag "Owner" ownerDecoder ownerTagSpecs)
 
 
+commonPrefixesDecoder : Decoder CommonPrefixes
+commonPrefixesDecoder =
+    JD.map CommonPrefixes
+        (JD.field "Prefix" JD.string)
+
 
 -- DigitalOcean puts Owner after StorageClass
 
@@ -112,6 +110,10 @@ bucketTagSpecs =
     ]
 
 
+prefixTagSpecs : List TagSpec
+prefixTagSpecs =
+    [ ( "Prefix", Required )
+    ]
 
 -- Amazon S3 puts Owner before StorageClass
 
@@ -139,7 +141,7 @@ boolOrString =
 
 listBucketDecoder : Decoder KeyList
 listBucketDecoder =
-    JD.map7 KeyList
+    JD.map8 KeyList
         (JD.field "Name" JD.string)
         (optionalTag "Prefix" JD.string [])
         (optionalTag "Marker" JD.string [])
@@ -151,6 +153,7 @@ listBucketDecoder =
             , multipleTag "Contents" bucketDecoder amazonBucketTagSpecs
             ]
         )
+        (multipleTag "CommonPrefixes" commonPrefixesDecoder prefixTagSpecs)
 
 
 listBucketTagSpecs : List TagSpec
@@ -162,6 +165,7 @@ listBucketTagSpecs =
     , ( "MaxKeys", Required )
     , ( "IsTruncated", Required )
     , ( "Contents", Multiple )
+    , ( "CommonPrefixes", Multiple)
     ]
 
 
@@ -171,6 +175,7 @@ doListBucketTagSpecs =
     , ( "Prefix", Optional )
     , ( "MaxKeys", Required )
     , ( "IsTruncated", Required )
+    , ( "CommonPrefixes", Multiple)
     , ( "Contents", Multiple )
     , ( "Marker", Optional )
     , ( "NextMarker", Optional )

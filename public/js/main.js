@@ -23,8 +23,13 @@ app.ports.decryptKeyList.subscribe(function(message) {
         salt: message["salt"]
     }).then(rclone => {
         keys.forEach(function(key){
-            key["keyEncrypted"] = key.key
-            key["keyDecrypted"] = rclone.Path.decrypt(key.key);
+            if (key.key.endsWith("/")) {
+                key["keyEncrypted"] = key.key
+                key["keyDecrypted"] = rclone.Path.decrypt(key.key.substring(0, key.key.length - 1)) + "/";
+            } else {
+                key["keyEncrypted"] = key.key
+                key["keyDecrypted"] = rclone.Path.decrypt(key.key);
+            }
             delete key.key
         });
         app.ports.decryptedKeyList.send({keys: keys, error: ""});
