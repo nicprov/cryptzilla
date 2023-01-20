@@ -19,7 +19,7 @@ import List.Extra as LE exposing (intercalate, uniqueBy)
 import Page
 import Request exposing (Request)
 import S3
-import S3.Types exposing (Error, KeyInfo, KeyList, QueryElement(..))
+import S3.Types exposing (CommonPrefixes, Error, KeyInfo, KeyList, QueryElement(..))
 import Shared exposing (EncryptedFile, FileDescriptionMessage, KeyInfoDecrypted, KeyListDecrypted, KeyListDescriptionMessage, decryptFile, decryptKeyList, encryptFile, encryptFileName)
 import Storage
 import Task
@@ -39,9 +39,9 @@ type alias Model =
     { keys: List KeyInfoDecrypted
     , tempKeys: List KeyInfoDecrypted -- Used for search purposes to not overwrite original file list
     , loadingKeys: List KeyInfo -- Used to gradually load all keys to display
-    , currentDir: String
-    , folderList: List KeyInfoDecrypted
-    , tempFolderList: List KeyInfoDecrypted -- Used for search purposes to not overwrite original folder list
+    , currentDir: CurrentDir
+    , folders: List KeyInfoDecrypted
+    , tempFolders: List KeyInfoDecrypted -- Used for search purposes to not overwrite original folder list
     , selectedList: List KeyInfoDecrypted
     , expandedItem: String
     , key: String
@@ -52,6 +52,11 @@ type alias Model =
     , folderName: String
     , fileNameEncrypted: Bool
     , search: String
+    }
+
+type alias CurrentDir =
+    { dirEncrypted: String
+    , dirDecrypted: String
     }
 
 type Status
@@ -66,9 +71,11 @@ init req shared =
         tmpModel = { keys = []
                    , tempKeys = []
                    , loadingKeys = []
-                   , currentDir = ""
-                   , folderList = []
-                   , tempFolderList = []
+                   , currentDir = { dirEncrypted = ""
+                                  , dirDecrypted = ""
+                                  }
+                   , folders = []
+                   , tempFolders = []
                    , selectedList = []
                    , expandedItem = ""
                    , key = ""
@@ -85,7 +92,7 @@ init req shared =
         ( { tmpModel | status = Loading "Loading..." }
         , case shared.storage.account of
             Just account ->
-                listBucket account ""
+                listBucket account "" (CurrentDir "" "")
             Nothing ->
                 Request.replaceRoute Gen.Route.Login req -- Redirect to login page if account is none
         )
@@ -104,7 +111,7 @@ type Msg
     | ReceivedPutFolder (Result Error String)
     | ListBucket
     | FileConvertedToBytes Bytes
-    | ClickedFolder String
+    | ClickedFolder KeyInfoDecrypted
     | ClickedBack
     | ClickedLogout
     | ClickedSettings
@@ -117,7 +124,7 @@ type Msg
     | ClickedCopyURL
     | ClickedToggleFileNameEncryption
     | ClickedSelected KeyInfoDecrypted
-    | ClickedFilePath String
+    | ClickedFilePath (String, String)
     | ClickedDropdown String
     | ClickedDownload KeyInfoDecrypted
     | ClickedDelete String
@@ -129,8 +136,8 @@ type Msg
     | ReceivedEncryptedFile EncryptedFile
     | ReceivedEncryptedFileName (String, String)
 
-listBucket : S3.Types.Account -> String -> Cmd Msg
-listBucket account marker =
+listBucket : S3.Types.Account -> String -> CurrentDir -> Cmd Msg
+listBucket account marker currentDir =
     let
         bucket = (case (head account.buckets) of
             Just b -> b
@@ -138,6 +145,8 @@ listBucket account marker =
             )
     in
     S3.listKeys bucket
+        |> S3.addQuery [ Delimiter "/" ]
+        |> S3.addQuery [ Prefix currentDir.dirEncrypted ]
         |> S3.addQuery [ Marker marker ]
         |> S3.send account
         |> Task.attempt ReceiveListBucket
@@ -228,41 +237,18 @@ checkContainsSearch search item =
     else
         False
 
+commonPrefixToKeyInfo: CommonPrefixes -> KeyInfo
+commonPrefixToKeyInfo commonPrefix =
+    { key = commonPrefix.prefix
+    , lastModified = ""
+    , eTag = ""
+    , size = 0
+    , storageClass = ""
+    , owner = Just { id = ""
+                   , displayName = ""
+                   }
+    }
 
-{- Takes a path and creates all permutations of it (excluding the path itself)
-For example: If the path = "test/test2/test3/", the output
-would be ["test/test2/, "test/"] except for KeyInfoDecrypted objects instead of strings
--}
-permutePaths: KeyInfoDecrypted -> List(KeyInfoDecrypted)
-permutePaths keyInfo  =
-    if keyInfo.keyDecrypted == "" then
-        [] -- base case
-    else
-        let
-            -- Decrypted Key
-            splitPathDecrypted = String.split "/" keyInfo.keyDecrypted
-            dropLastItemDecrypted = List.take ((List.length splitPathDecrypted) - 2) splitPathDecrypted -- drop the last item in the list + empty item (because split on "/" adds "" as last item)
-
-            -- Encrypted Key
-            splitPathEncrypted = String.split "/" keyInfo.keyEncrypted
-            dropLastItemEncrypted = List.take ((List.length splitPathEncrypted) - 1) splitPathEncrypted -- drop the last item in the list
-        in
-        if List.length dropLastItemDecrypted == 0 then
-            permutePaths { keyInfo | keyDecrypted = "" }
-        else
-            let
-                tmpPathDecrypted = (String.join "/" dropLastItemDecrypted) ++ "/" -- decrypted key
-                tmpPathEncrypted = (String.join "/" dropLastItemEncrypted) ++ "/" -- encrypted key
-                newKeyInfo = { keyEncrypted = tmpPathEncrypted
-                             , keyDecrypted = tmpPathDecrypted
-                             , lastModified = keyInfo.lastModified
-                             , eTag = keyInfo.eTag
-                             , size = keyInfo.size
-                             , storageClass = keyInfo.storageClass
-                             , owner = keyInfo.owner
-                             }
-            in
-            newKeyInfo :: permutePaths newKeyInfo
 
 update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
 update shared req msg model =
@@ -272,7 +258,7 @@ update shared req msg model =
             case shared.storage.account of
                 Just acc ->
                     ( { model | status = Loading "Getting bucket listing..." }
-                    , listBucket acc ""
+                    , listBucket acc "" { dirEncrypted = "", dirDecrypted = "" }
                     )
                 Nothing -> (model, Cmd.none)
 
@@ -284,12 +270,15 @@ update shared req msg model =
                     )
 
                 Ok keyList ->
-                    if keyList.isTruncated then -- Need to keep fetching keys
+                    if keyList.isTruncated then -- Need to keep fetching keys if isTruncated is True
                         case shared.storage.account of
                             Just acc ->
                                 case keyList.nextMarker of
                                     Just marker ->
-                                        ( { model | loadingKeys = List.append keyList.keys model.loadingKeys }, listBucket acc marker)
+                                        let
+                                            folderList = List.map commonPrefixToKeyInfo keyList.prefixes
+                                        in
+                                        ( { model | loadingKeys = keyList.keys ++ folderList ++ model.loadingKeys }, listBucket acc marker (CurrentDir "" ""))
 
                                     Nothing ->
                                         ( { model | status = Failure "Unable to get nextMarker" }, Cmd.none )
@@ -297,20 +286,45 @@ update shared req msg model =
                             Nothing -> (model, Cmd.none)
                     else
                         let
-                            tempKeys = List.append keyList.keys model.loadingKeys
+                            folderList = List.map commonPrefixToKeyInfo keyList.prefixes
+                            tempKeys = keyList.keys ++ folderList ++ model.loadingKeys
                         in
                         ( model, decryptKeyList (KeyListDescriptionMessage tempKeys shared.storage.password shared.storage.salt))
 
         ClickedFolder folder ->
-            ( { model | currentDir = folder, expandedItem = "" }, Cmd.none)
+            case shared.storage.account of
+                Just acc ->
+                    let
+                        currentDir = { dirEncrypted = folder.keyEncrypted
+                                     , dirDecrypted = folder.keyDecrypted
+                                     }
+                    in
+                    ( { model | currentDir = currentDir , status = Loading "Loading..." }
+                    , listBucket acc "" currentDir
+                    )
+                Nothing -> (model, Cmd.none)
 
 
         ClickedBack ->
-            let
-                tempList = List.reverse (List.drop 2 (List.reverse (String.split "/" model.currentDir)))
-                newDirList =  List.map (\m -> m ++ "/") tempList
-            in
-            ( { model | currentDir = String.concat newDirList }, Cmd.none)
+            case shared.storage.account of
+                Just acc ->
+                    let
+                        -- Decrypted dir
+                        tempListDecrypted = List.reverse (List.drop 2 (List.reverse (String.split "/" model.currentDir.dirDecrypted)))
+                        newDirListDecrypted =  List.map (\m -> m ++ "/") tempListDecrypted
+                        currentDirDecrypted = String.concat newDirListDecrypted
+                        -- Encrypted dir
+                        tempListEncrypted = List.reverse (List.drop 2 (List.reverse (String.split "/" model.currentDir.dirEncrypted)))
+                        newDirListEncrypted =  List.map (\m -> m ++ "/") tempListEncrypted
+                        currentDirEncrypted = String.concat newDirListEncrypted
+
+                        currentDir = { dirDecrypted = currentDirDecrypted, dirEncrypted = currentDirEncrypted }
+                    in
+                    ( { model | currentDir = currentDir, status = Loading "Loading..." }
+                    , listBucket acc "" currentDir
+                    )
+                Nothing -> (model, Cmd.none)
+
 
         ClickedLogout ->
             ( model, Cmd.batch [ Storage.signOut shared.storage
@@ -323,10 +337,22 @@ update shared req msg model =
                 Just acc ->
                     case List.head acc.buckets of
                         Just bucket ->
-                            if dir == bucket then
-                                ( { model | currentDir = "" }, Cmd.none )
+                            if (Tuple.first dir) == "" then
+                                let
+                                    currentDir = CurrentDir "" ""
+                                in
+                                ( { model | currentDir = currentDir, status = Loading "Loading..." }
+                                , listBucket acc "" currentDir
+                                )
                             else
-                                ( { model | currentDir = (String.dropLeft ((String.length bucket) + 1) dir) ++ "/" }, Cmd.none)
+                                let
+                                    currentDir = { dirEncrypted = Tuple.first dir
+                                                 , dirDecrypted = Tuple.second dir
+                                                 }
+                                in
+                                ( { model | currentDir = currentDir, status = Loading "Loading..." }
+                                , listBucket acc "" currentDir
+                                )
                         Nothing ->
                             (model, Cmd.none)
                 Nothing ->
@@ -337,15 +363,15 @@ update shared req msg model =
                 let
                     reducedFolder = List.map removeFiles decryptedKeys.keys
                     folders = List.filter isFolder reducedFolder
-                    permutationsOfFolder = intercalate [] (List.map permutePaths folders)
-                    allFoldersJoined = List.append folders permutationsOfFolder
-                    folderList = uniqueBy (\k -> k.keyDecrypted) allFoldersJoined
+                    --permutationsOfFolder = intercalate [] (List.map permutePaths folders)
+                    --allFoldersJoined = List.append folders permutationsOfFolder
+                    folderList = uniqueBy (\k -> k.keyDecrypted) folders
                 in
                 ( { model
                     | keys = decryptedKeys.keys
                     , tempKeys = decryptedKeys.keys
-                    , folderList = folderList
-                    , tempFolderList = folderList
+                    , folders = folderList
+                    , tempFolders = folderList
                     , status = (if (List.length decryptedKeys.keys == 0) then
                                     Failure "No files to show"
                                 else
@@ -388,16 +414,16 @@ update shared req msg model =
 
         ReceiveDeleteObject result ->
             case result of
-                Err err ->
+                Err _ ->
                     ( { model | status = Failure ("Unable to delete file") }
                     , Cmd.none
                     )
 
-                Ok res ->
+                Ok _ ->
                     case shared.storage.account of
                         Just acc ->
                             ( { model | expandedItem = "", status = Success "Successfully deleted object" }
-                            , listBucket acc ""
+                            , listBucket acc "" model.currentDir
                             )
                         Nothing -> (model, Cmd.none)
 
@@ -428,7 +454,7 @@ update shared req msg model =
 
         ReceiveGetObjectBytes result ->
             case result of
-                Err err ->
+                Err _ ->
                     ( { model | status = Failure ("Unable to download file") }
                     , Cmd.none
                     )
@@ -451,7 +477,7 @@ update shared req msg model =
         FileConvertedToBytes bytes ->
             case Base64.fromBytes bytes of
                 Just b ->
-                    ( { model | status = Loading "Encrypting file..."}, encryptFile (FileDescriptionMessage b (model.currentDir ++ model.key) shared.storage.password shared.storage.salt))
+                    ( { model | status = Loading "Encrypting file..."}, encryptFile (FileDescriptionMessage b (model.currentDir.dirDecrypted ++ model.key) shared.storage.password shared.storage.salt))
 
                 Nothing ->
                     ( { model | status = None }, Cmd.none) -- TODO show error message
@@ -472,7 +498,7 @@ update shared req msg model =
 
         ReceivePutObjectBytes result ->
             case result of
-                Err err ->
+                Err _ ->
                     ( { model | status = Failure ("Unable to upload file") }
                     , Cmd.none
                     )
@@ -481,7 +507,7 @@ update shared req msg model =
                     case shared.storage.account of
                         Just acc ->
                             ( { model | status = Success "Successfully uploaded file" }
-                            , listBucket acc ""
+                            , listBucket acc "" model.currentDir
                             )
 
                         Nothing -> ( { model | status = None }, Cmd.none)
@@ -505,7 +531,7 @@ update shared req msg model =
 
         ReceivedPutFolder result ->
             case result of
-                Err err ->
+                Err _ ->
                     ( { model | status = Failure ("Unable to create folder") }
                     , Cmd.none
                     )
@@ -514,7 +540,7 @@ update shared req msg model =
                      case shared.storage.account of
                         Just acc ->
                             ( { model | status = Success "Successfully created folder" }
-                            , listBucket acc ""
+                            , listBucket acc "" model.currentDir
                             )
 
                         Nothing -> ( { model | status = None }, Cmd.none)
@@ -525,7 +551,7 @@ update shared req msg model =
         ClickedCreateFolder ->
             if model.folderName /= "" then
                 ( { model | folderModal = False, status = Loading "Creating folder..." }
-                , encryptFileName (FileDescriptionMessage "" (model.currentDir ++ model.folderName ++ "/") shared.storage.password shared.storage.salt)
+                , encryptFileName (FileDescriptionMessage "" (model.currentDir.dirDecrypted ++ model.folderName ++ "/") shared.storage.password shared.storage.salt)
                 )
             else
                 ( { model | status = Failure "Folder name cannot be empty" }, Cmd.none)
@@ -537,7 +563,7 @@ update shared req msg model =
             case shared.storage.account of
                 Just acc ->
                     ( { model | expandedItem = "", status = Loading "Reloading items" }
-                    , listBucket acc ""
+                    , listBucket acc "" model.currentDir
                     )
                 Nothing -> (model, Cmd.none)
 
@@ -571,7 +597,7 @@ update shared req msg model =
                 folders = List.filter isFolder reducedFolder
                 folderList = uniqueBy (\k -> k.keyDecrypted) folders
             in
-            ( { model | tempKeys = filteredKeys, tempFolderList = folderList, search = search }, Cmd.none )
+            ( { model | tempKeys = filteredKeys, tempFolders = folderList, search = search }, Cmd.none )
 
 
 -- Listen for shared model changes
@@ -725,7 +751,9 @@ viewMain shared model account =
                                             case (List.head a.buckets) of
                                                 Just bucket ->
                                                     let
-                                                        indexedDirs = (List.indexedMap Tuple.pair (String.split "/" (bucket ++ "/" ++ model.currentDir)))
+                                                        decrypted = (String.split "/" (bucket ++ "/" ++ model.currentDir.dirDecrypted))
+                                                        encrypted = (String.split "/" (bucket ++ "/" ++ model.currentDir.dirEncrypted))
+                                                        indexedDirs = (List.indexedMap Tuple.pair (List.map2 Tuple.pair decrypted encrypted))
                                                     in
                                                     List.map (viewFilePath indexedDirs) indexedDirs
                                                 Nothing ->
@@ -1054,7 +1082,7 @@ viewMain shared model account =
                                     , tbody []
                                         (if List.length model.tempKeys /= 0 then
                                              (List.append
-                                                 (List.append (viewBack model) (List.map (viewFolderItem shared model) model.tempFolderList))
+                                                 (List.append (viewBack model) (List.map (viewFolderItem shared model) model.tempFolders))
                                                  (List.map (viewFileItem shared model) model.tempKeys)
                                              )
                                          else
@@ -1152,10 +1180,13 @@ viewFolderModal =
         ]
     ]
 
-viewFilePath: List((Int, String)) -> (Int, String) -> Html Msg
+viewFilePath: List((Int, (String, String))) -> (Int, (String, String)) -> Html Msg
 viewFilePath listDirs dir =
     let
-        fullPath = String.join "/" (List.map (\t -> Tuple.second t) (List.filter (\t -> (Tuple.first t) <= (Tuple.first dir)) listDirs))
+        --fullPathEncrypted = String.join "/" (List.map (\t -> Tuple.second (Tuple.first t)) (List.filter (\t -> (Tuple.first (Tuple.first t)) <= (Tuple.first dir)) listDirs))
+        removeBucketName = List.drop 1 listDirs
+        fullPathEncrypted = (String.join "/" (List.map (\t -> Tuple.second (Tuple.second t)) (List.filter (\t -> (Tuple.first t) <= (Tuple.first dir)) removeBucketName))) ++ "/"
+        fullPathDecrypted = (String.join "/" (List.map (\t -> Tuple.first (Tuple.second t)) (List.filter (\t -> (Tuple.first t) <= (Tuple.first dir)) removeBucketName))) ++ "/"
     in
     li
     [ Attr.attribute "data-v-081c0a81" ""
@@ -1163,17 +1194,17 @@ viewFilePath listDirs dir =
     [ a
         [ Attr.attribute "data-v-081c0a81" ""
         , Attr.href "#"
-        , onClick (ClickedFilePath fullPath)
+        , onClick (ClickedFilePath (fullPathEncrypted, fullPathDecrypted))
         ]
-        [ text (Tuple.second dir) ]
+        [ text (Tuple.first (Tuple.second dir)) ]
     ]
 
 
 viewFileItem: Shared.Model -> Model -> KeyInfoDecrypted -> Html Msg
 viewFileItem shared model key =
-    if String.contains model.currentDir key.keyDecrypted then
+    if String.contains model.currentDir.dirDecrypted key.keyDecrypted then
         let
-            name = String.replace model.currentDir "" key.keyDecrypted
+            name = String.replace model.currentDir.dirDecrypted "" key.keyDecrypted
             file = String.split "/" name
         in
         if name /= "" && (List.length file) == 1 then
@@ -1227,14 +1258,14 @@ viewFile shared model key =
                     [ text (if model.fileNameEncrypted then
                                 let
                                     encryptedFileNameAsList = String.split "/" key.keyEncrypted
-                                    currentDirAsList = String.split "/" model.currentDir
+                                    currentDirAsList = String.split "/" model.currentDir.dirDecrypted
                                     onlyName = List.drop ((List.length currentDirAsList) - 1) encryptedFileNameAsList
                                 in
                                 case List.head onlyName of
                                     Just head -> head
                                     Nothing -> key.keyEncrypted
                             else
-                                String.replace model.currentDir "" key.keyDecrypted )
+                                String.replace model.currentDir.dirDecrypted "" key.keyDecrypted )
                     ]
                 ]
             ]
@@ -1396,12 +1427,12 @@ viewDropdown shared model key isAFolder =
 
 viewFolderItem: Shared.Model -> Model -> KeyInfoDecrypted -> Html Msg
 viewFolderItem shared model key =
-    if String.contains model.currentDir key.keyDecrypted then
+    if String.contains model.currentDir.dirDecrypted key.keyDecrypted then
         let
-            tempFolder = String.replace model.currentDir "" key.keyDecrypted
+            tempFolder = String.replace model.currentDir.dirDecrypted "" key.keyDecrypted
         in
 
-        if model.currentDir /= key.keyDecrypted && (List.length (String.split "/" tempFolder)) == 2 then
+        if model.currentDir.dirDecrypted /= key.keyDecrypted && (List.length (String.split "/" tempFolder)) == 2 then
             viewFolder shared model key
         else
             div [] []
@@ -1447,13 +1478,13 @@ viewFolder shared model key =
                 [ Attr.attribute "data-v-081c0a81" ""
                 , Attr.class "is-block name"
                 , Attr.href "#"
-                , onClick (ClickedFolder key.keyDecrypted)
+                , onClick (ClickedFolder key)
                 ]
                 [ text (if model.fileNameEncrypted then
                             let
                                 encryptedFolderNameAsList = String.split "/" key.keyEncrypted
                                 encryptedFolderNameWithoutTailingWhiteSpace = List.take (List.length encryptedFolderNameAsList - 1) encryptedFolderNameAsList
-                                currentDirAsList = String.split "/" model.currentDir
+                                currentDirAsList = String.split "/" model.currentDir.dirDecrypted
                                 onlyName = List.drop ((List.length currentDirAsList) - 1) encryptedFolderNameWithoutTailingWhiteSpace
                             in
                             case List.head onlyName of
@@ -1461,7 +1492,7 @@ viewFolder shared model key =
                                 Nothing -> key.keyEncrypted
                         else
                             let
-                                name = String.replace model.currentDir "" key.keyDecrypted
+                                name = String.replace model.currentDir.dirDecrypted "" key.keyDecrypted
                             in
                             (String.left ((String.length name) - 1) name))
                 ]
@@ -1495,7 +1526,7 @@ viewFolder shared model key =
 
 viewBack: Model -> List (Html Msg)
 viewBack model =
-    if model.currentDir == "" then
+    if model.currentDir.dirDecrypted == "" then
         []
     else
         [ tr
