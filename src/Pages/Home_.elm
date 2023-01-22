@@ -755,7 +755,7 @@ viewMain shared model account =
                                                         encrypted = (String.split "/" (bucket ++ "/" ++ model.currentDir.dirEncrypted))
                                                         indexedDirs = (List.indexedMap Tuple.pair (List.map2 Tuple.pair decrypted encrypted))
                                                     in
-                                                    List.map (viewFilePath indexedDirs) indexedDirs
+                                                    List.map (viewFilePath indexedDirs model) indexedDirs
                                                 Nothing ->
                                                     [div [] []]
 
@@ -1180,8 +1180,8 @@ viewFolderModal =
         ]
     ]
 
-viewFilePath: List((Int, (String, String))) -> (Int, (String, String)) -> Html Msg
-viewFilePath listDirs dir =
+viewFilePath: List((Int, (String, String))) -> Model -> (Int, (String, String)) -> Html Msg
+viewFilePath listDirs model dir =
     let
         --fullPathEncrypted = String.join "/" (List.map (\t -> Tuple.second (Tuple.first t)) (List.filter (\t -> (Tuple.first (Tuple.first t)) <= (Tuple.first dir)) listDirs))
         removeBucketName = List.drop 1 listDirs
@@ -1196,7 +1196,11 @@ viewFilePath listDirs dir =
         , Attr.href "#"
         , onClick (ClickedFilePath (fullPathEncrypted, fullPathDecrypted))
         ]
-        [ text (Tuple.first (Tuple.second dir)) ]
+        [ if model.fileNameEncrypted then
+            text (Tuple.second (Tuple.second dir))
+          else
+            text (Tuple.first (Tuple.second dir))
+        ]
     ]
 
 
