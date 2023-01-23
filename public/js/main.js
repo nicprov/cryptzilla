@@ -57,15 +57,22 @@ app.ports.decryptFile.subscribe(function(message) {
 })
 
 app.ports.encryptFile.subscribe(function(message) {
-    generateKey(message["key"], message["salt"], (error, key) => {
-        generatedError = "";
-        if (error != null)
-            generatedError = "Unable to generate key";
-        var keyBase64 = nacl.util.encodeBase64(key);
-        var messageBase64 = message["file"];
-        const e = encrypt(keyBase64, messageBase64)
-        app.ports.encryptedFile.send({encryptedFile:e, encryptedPath: rclone.Path.encrypt(message["name"]), error: generatedError});
-    });
+    window.rclone.Rclone({
+        password: message["key"],
+        salt: message["salt"]
+    }).then(rclone => {
+        generateKey(message["key"], message["salt"], (error, key) => {
+            generatedError = "";
+            if (error != null)
+                generatedError = "Unable to generate key";
+            var keyBase64 = nacl.util.encodeBase64(key);
+            var messageBase64 = message["file"];
+            const e = encrypt(keyBase64, messageBase64)
+            app.ports.encryptedFile.send({encryptedFile:e, encryptedPath: rclone.Path.encrypt(message["name"]), error: generatedError});
+        });
+    }).catch(error => {
+        app.ports.encryptedFile.send({encryptedFile:"", encryptedPath: "", error: error.toString()});
+    })
 })
 
 app.ports.encryptFileName.subscribe(function(message) {
