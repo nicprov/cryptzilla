@@ -5,7 +5,7 @@ import Html.Attributes as Attr exposing (href, target)
 
 version: String
 version =
-    "1.5.1"
+    "1.5.2"
 
 viewFooter: Html msg
 viewFooter =
