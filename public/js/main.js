@@ -97,15 +97,31 @@ const blockDataSize = 64 * 1024;
 const blockSize = blockHeaderSize + blockDataSize;
 
 function encrypt(key, messageToEncrypt){
-    const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+    const initialNonce = nacl.randomBytes(nacl.secretbox.nonceLength);
     const keyUint8Array = nacl.util.decodeBase64(key);
     const messageUint8 = nacl.util.decodeBase64(messageToEncrypt);
-    const box = nacl.secretbox(messageUint8, nonce, keyUint8Array);
-    const fileMagic = new Uint8Array([82, 67, 76, 79, 78, 69, 0, 0]); // RCLONE\x00\0x00
-    const fullMessage = new Uint8Array(fileMagic.length + nonce.length + box.length);
+
+    // Encrypt by chunk of 65552 bytes (65536 bytes + 16 byte MAC)
+    const nonce = initialNonce.slice();
+    const numBlocks = Math.ceil(messageUint8.length / blockDataSize); // Calculate the number of blocks, since there is no header yet, we use blockDataSize instead of blockSize
+    const encryptedSize = ((numBlocks - 1) * blockSize) + ((messageUint8.length % blockDataSize) + blockHeaderSize); // Calculate the total encrypted size, the last block is not a full size hence the modulo
+    const encryptedMessage = new Uint8Array(encryptedSize);
+    let currentBlock = 0;
+    while (currentBlock < numBlocks) {
+        if (currentBlock === numBlocks - 1)
+            part = messageUint8.slice(currentBlock * blockDataSize);
+        else
+            part = messageUint8.slice(currentBlock * blockDataSize, (currentBlock + 1) * blockDataSize)
+        const encryptedPart = nacl.secretbox(part, nonce, keyUint8Array);
+        encryptedMessage.set(encryptedPart, currentBlock * blockSize);
+        incrementNonce(nonce); // each part has a different nonce, the initial nonce is just used for the first chunk
+        currentBlock += 1;
+    }
+    const fileMagic = new Uint8Array([82, 67, 76, 79, 78, 69, 0, 0]); // RCLONE\x00\x00
+    const fullMessage = new Uint8Array(fileMagic.length + initialNonce.length + encryptedMessage.length);
     fullMessage.set(fileMagic);
-    fullMessage.set(nonce, fileMagic.length);
-    fullMessage.set(box, nonce.length + fileMagic.length);
+    fullMessage.set(initialNonce, fileMagic.length);
+    fullMessage.set(encryptedMessage, initialNonce.length + fileMagic.length);
     return nacl.util.encodeBase64(fullMessage);
 }
 
@@ -127,10 +143,10 @@ function decrypt(key, messageWithNonce){
         messageWithNonce.length
     );
 
-    // Decrypt by chunk of 65536 bytes
+    // Decrypt by chunk of 65552 bytes (65536 bytes + 16 byte MAC)
     const nonce = initialNonce.slice();
     const numBlocks = Math.ceil(message.length / blockSize); // Calculate the number of blocks
-    const decryptedSize = ((numBlocks - 1) * (blockSize - blockHeaderSize)) + ((message.length % blockSize) - blockHeaderSize);
+    const decryptedSize = ((numBlocks - 1) * blockDataSize) + ((message.length % blockSize) - blockHeaderSize); // Calculate the total decrypted size, the last block is not a full size hence the modulo
     const decryptedMessage = new Uint8Array(decryptedSize);
     let currentBlock = 0;
     while (currentBlock < numBlocks) {
@@ -143,10 +159,9 @@ function decrypt(key, messageWithNonce){
         if (!decryptedPart) {
             return [ "", "Could not decrypt message" ];
         }
-        incrementNonce(nonce);
+        incrementNonce(nonce); // each part has a different nonce, the initial nonce is just used for the first chunk
         currentBlock += 1;
     }
-
     return [ nacl.util.encodeBase64(decryptedMessage), "" ]
 }
 
