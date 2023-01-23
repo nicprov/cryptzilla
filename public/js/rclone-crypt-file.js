@@ -89,7 +89,7 @@ function generateKey(password, salt, callback){
     else
         generatedSalt = reveal(salt)
 
-    scrypt(reveal(createCipher(), password), generatedSalt, 16384, 8, 1, nacl.secretbox.keyLength, (error, progress, key) => {
+    scrypt(reveal(password), generatedSalt, 16384, 8, 1, nacl.secretbox.keyLength, (error, progress, key) => {
         if(error){
             callback(error, null);
         }
@@ -154,8 +154,8 @@ function createCipher() {
     return (ctrCipher = new ctr(key, 0));
 }
 
-function reveal(ctrCipher, cipherText) {
-    const blockCipher = createCipher();
+function reveal(cipherText) {
+    const ctrCipher = createCipher();
 
     cipherText = cipherText.replace(/-/g, '+').replace(/_/g, '/');
     const bytes = base64(cipherText);
