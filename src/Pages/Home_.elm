@@ -335,26 +335,22 @@ update shared req msg model =
         ClickedFilePath dir ->
             case shared.storage.account of
                 Just acc ->
-                    case List.head acc.buckets of
-                        Just bucket ->
-                            if (Tuple.first dir) == "" then
-                                let
-                                    currentDir = CurrentDir "" ""
-                                in
-                                ( { model | currentDir = currentDir, status = Loading "Loading..." }
-                                , listBucket acc "" currentDir
-                                )
-                            else
-                                let
-                                    currentDir = { dirEncrypted = Tuple.first dir
-                                                 , dirDecrypted = Tuple.second dir
-                                                 }
-                                in
-                                ( { model | currentDir = currentDir, status = Loading "Loading..." }
-                                , listBucket acc "" currentDir
-                                )
-                        Nothing ->
-                            (model, Cmd.none)
+                    if (Tuple.first dir) == "/" then
+                        let
+                            currentDir = CurrentDir "" ""
+                        in
+                        ( { model | currentDir = currentDir, status = Loading "Loading..." }
+                        , listBucket acc "" currentDir
+                        )
+                    else
+                        let
+                            currentDir = { dirEncrypted = Tuple.first dir
+                                         , dirDecrypted = Tuple.second dir
+                                         }
+                        in
+                        ( { model | currentDir = currentDir, status = Loading "Loading..." }
+                        , listBucket acc "" currentDir
+                        )
                 Nothing ->
                     (model, Cmd.none)
 
