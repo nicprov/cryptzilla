@@ -11,7 +11,7 @@ import File exposing (File, name)
 import File.Download as Download
 import File.Select as Select
 import Gen.Route
-import Html exposing (Html, a, button, div, footer, hr, i, img, input, label, li, nav, node, ol, option, p, section, select, span, table, tbody, td, text, th, thead, tr, ul)
+import Html exposing (Attribute, Html, a, button, div, footer, hr, i, img, input, label, li, nav, node, ol, option, p, section, select, span, table, tbody, td, text, th, thead, tr, ul)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick, onInput)
 import List exposing (head)
@@ -52,12 +52,23 @@ type alias Model =
     , folderName: String
     , fileNameEncrypted: Bool
     , search: String
+    , sortAttribute: SortAttribute
+    , sortType: SortType
     }
 
 type alias CurrentDir =
     { dirEncrypted: String
     , dirDecrypted: String
     }
+
+type SortAttribute
+    = Name
+    | Size
+    | Time
+
+type SortType
+    = Ascending
+    | Descending
 
 type Status
     = Success String
@@ -86,6 +97,8 @@ init req shared =
                    , folderName = ""
                    , fileNameEncrypted = False
                    , search = ""
+                   , sortType = Ascending
+                   , sortAttribute = Name
                    }
     in
     if shared.storage.encryptionKey /= "" then
@@ -123,6 +136,9 @@ type Msg
     | ClickedDeleteSelected
     | ClickedCopyURL
     | ClickedToggleFileNameEncryption
+    | ClickedSortName
+    | ClickedSortSize
+    | ClickedSortTime
     | ClickedSelected KeyInfoDecrypted
     | ClickedFilePath (String, String)
     | ClickedDropdown String
@@ -249,7 +265,6 @@ commonPrefixToKeyInfo commonPrefix =
                    }
     }
 
-
 update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
 update shared req msg model =
     case msg of
@@ -359,24 +374,116 @@ update shared req msg model =
                 let
                     reducedFolder = List.map removeFiles decryptedKeys.keys
                     folders = List.filter isFolder reducedFolder
-                    --permutationsOfFolder = intercalate [] (List.map permutePaths folders)
-                    --allFoldersJoined = List.append folders permutationsOfFolder
                     folderList = uniqueBy (\k -> k.keyDecrypted) folders
                 in
-                ( { model
-                    | keys = decryptedKeys.keys
-                    , tempKeys = decryptedKeys.keys
-                    , folders = folderList
-                    , tempFolders = folderList
-                    , status = (if (List.length decryptedKeys.keys == 0) then
-                                    Failure "No files to show"
-                                else
-                                    None
+                case model.sortAttribute of
+                    Name ->
+                        let
+                            tempKeys = List.sortBy .keyDecrypted decryptedKeys.keys
+                            tempFolders = List.sortBy .keyDecrypted folderList
+                        in
+                        case model.sortType of
+                            Ascending ->
+                                ( { model
+                                    | keys = decryptedKeys.keys
+                                    , tempKeys = tempKeys
+                                    , folders = folderList
+                                    , tempFolders = tempFolders
+                                    , status = (if (List.length decryptedKeys.keys == 0) then
+                                                    Failure "No files to show"
+                                                else
+                                                    None
+                                                )
+                                  }
+                                , Cmd.none
                                 )
-                  }
-                , Cmd.none
-                )
-            else
+
+                            Descending ->
+                                ( { model
+                                    | keys = decryptedKeys.keys
+                                    , tempKeys = List.reverse tempKeys
+                                    , folders = folderList
+                                    , tempFolders = List.reverse tempFolders
+                                    , status = (if (List.length decryptedKeys.keys == 0) then
+                                                    Failure "No files to show"
+                                                else
+                                                    None
+                                                )
+                                  }
+                                , Cmd.none
+                                )
+
+                    Size ->
+                        let
+                            tempKeys = List.sortBy .size decryptedKeys.keys
+                        in
+                        case model.sortType of
+                            Ascending ->
+                                ( { model
+                                    | keys = decryptedKeys.keys
+                                    , tempKeys = tempKeys
+                                    , folders = folderList
+                                    , tempFolders = folderList
+                                    , status = (if (List.length decryptedKeys.keys == 0) then
+                                                    Failure "No files to show"
+                                                else
+                                                    None
+                                                )
+                                  }
+                                , Cmd.none
+                                )
+
+                            Descending ->
+                                ( { model
+                                    | keys = decryptedKeys.keys
+                                    , tempKeys = List.reverse tempKeys
+                                    , folders = folderList
+                                    , tempFolders = folderList
+                                    , status = (if (List.length decryptedKeys.keys == 0) then
+                                                    Failure "No files to show"
+                                                else
+                                                    None
+                                                )
+                                  }
+                                , Cmd.none
+                                )
+
+                    Time ->
+                        let
+                            tempKeys = List.sortBy .lastModified decryptedKeys.keys
+                            tempFolders = List.sortBy .lastModified folderList
+                        in
+                        case model.sortType of
+                            Ascending ->
+                                ( { model
+                                    | keys = decryptedKeys.keys
+                                    , tempKeys = tempKeys
+                                    , folders = folderList
+                                    , tempFolders = tempFolders
+                                    , status = (if (List.length decryptedKeys.keys == 0) then
+                                                    Failure "No files to show"
+                                                else
+                                                    None
+                                                )
+                                  }
+                                , Cmd.none
+                                )
+
+                            Descending ->
+                                ( { model
+                                    | keys = decryptedKeys.keys
+                                    , tempKeys = List.reverse tempKeys
+                                    , folders = folderList
+                                    , tempFolders = List.reverse tempFolders
+                                    , status = (if (List.length decryptedKeys.keys == 0) then
+                                                    Failure "No files to show"
+                                                else
+                                                    None
+                                                )
+                                  }
+                                , Cmd.none
+                                )
+                else
                 ( { model | status = Failure decryptedKeys.error }, Cmd.none)
 
         ClickedSelected keyInfo ->
@@ -594,6 +701,54 @@ update shared req msg model =
                 folderList = uniqueBy (\k -> k.keyDecrypted) folders
             in
             ( { model | tempKeys = filteredKeys, tempFolders = folderList, search = search }, Cmd.none )
+
+        ClickedSortName ->
+            case model.sortAttribute of
+                Name ->
+                    case model.sortType of
+                        Ascending ->
+                            ( { model | sortType = Descending, tempKeys = List.reverse model.tempKeys, tempFolders = List.reverse model.tempFolders }, Cmd.none )
+
+                        Descending ->
+                            ( { model | sortType = Ascending, tempKeys = List.reverse model.tempKeys, tempFolders = List.reverse model.tempFolders }, Cmd.none )
+                _ ->
+                    let
+                        keys = List.sortBy .keyDecrypted model.tempKeys
+                        folders = List.sortBy .keyDecrypted model.tempFolders
+                    in
+                    ( { model | sortAttribute = Name, sortType = Ascending, tempKeys = keys, tempFolders = folders }, Cmd.none )
+
+        ClickedSortSize ->
+            case model.sortAttribute of
+                Size ->
+                    case model.sortType of
+                        Ascending ->
+                            ( { model | sortType = Descending, tempKeys = List.reverse model.tempKeys }, Cmd.none )
+
+                        Descending ->
+                            ( { model | sortType = Ascending, tempKeys = List.reverse model.tempKeys }, Cmd.none )
+                _ ->
+                    let
+                        keys = List.sortBy .size model.tempKeys
+                    in
+                    ( { model | sortAttribute = Size, sortType = Ascending, tempKeys = keys }, Cmd.none )
+
+        ClickedSortTime ->
+            case model.sortAttribute of
+                Time ->
+                    case model.sortType of
+                        Ascending ->
+                            ( { model | sortType = Descending, tempKeys = List.reverse model.keys, tempFolders = List.reverse model.folders }, Cmd.none )
+
+                        Descending ->
+                            ( { model | sortType = Ascending, tempKeys = List.reverse model.keys, tempFolders = List.reverse model.folders }, Cmd.none )
+                _ ->
+                    let
+                        keys = List.sortBy .lastModified model.tempKeys
+                        folders = List.sortBy .lastModified model.tempFolders
+                    in
+                    ( { model | sortAttribute = Time, sortType = Ascending, tempKeys = keys, tempFolders = folders }, Cmd.none )
+
 
 
 -- Listen for shared model changes
@@ -934,16 +1089,13 @@ viewMain shared model account =
                                             ]
                                             [ select []
                                                 [ option
-                                                    [ Attr.value "[object Object]"
-                                                    ]
+                                                    []
                                                     [ text "Name" ]
                                                 , option
-                                                    [ Attr.value "[object Object]"
-                                                    ]
+                                                    []
                                                     [ text "Size" ]
                                                 , option
-                                                    [ Attr.value "[object Object]"
-                                                    ]
+                                                    []
                                                     [ text "Time" ]
                                                 ]
                                             ]
@@ -1008,49 +1160,66 @@ viewMain shared model account =
                                                     ]
                                                 ]
                                             , th
-                                                [ Attr.class "is-sortable"
+                                                [ case model.sortAttribute of
+                                                    Name -> Attr.class "is-current-sort is-sortable"
+                                                    _ -> Attr.class "is-sortable"
                                                 ]
                                                 [ div
                                                     [ Attr.class "th-wrap"
+                                                    , onClick ClickedSortName
                                                     ]
                                                     [ text "Name", span
                                                         [ Attr.class "icon is-small"
-                                                        ]
-                                                        []
-                                                    ]
-                                                ]
-                                            , th
-                                                [ Attr.class "is-sortable"
-                                                , Attr.style "width" "150px"
-                                                ]
-                                                [ div
-                                                    [ Attr.class "th-wrap is-numeric"
-                                                    ]
-                                                    [ text "Size", span
-                                                        [ Attr.class "icon is-small"
-                                                        , Attr.style "display" "none"
+                                                        , case model.sortAttribute of
+                                                            Name -> Attr.class ""
+                                                            _ -> Attr.style "display" "none"
                                                         ]
                                                         [ i
-                                                            [ Attr.class "fas fa-arrow-up"
-                                                            ]
+                                                            (viewSortArrow model)
                                                             []
                                                         ]
                                                     ]
                                                 ]
                                             , th
-                                                [ Attr.class "is-sortable"
+                                                [ case model.sortAttribute of
+                                                  Size -> Attr.class "is-current-sort is-sortable"
+                                                  _ -> Attr.class "is-sortable"
+                                                , Attr.style "width" "150px"
+                                                ]
+                                                [ div
+                                                    [ Attr.class "th-wrap is-numeric"
+                                                    , onClick ClickedSortSize
+                                                    ]
+                                                    [ text "Size", span
+                                                        [ Attr.class "icon is-small"
+                                                        , case model.sortAttribute of
+                                                            Size -> Attr.class ""
+                                                            _ -> Attr.style "display" "none"
+                                                        ]
+                                                        [ i
+                                                            (viewSortArrow model)
+                                                            []
+                                                        ]
+                                                    ]
+                                                ]
+                                            , th
+                                                [ case model.sortAttribute of
+                                                  Time -> Attr.class "is-current-sort is-sortable"
+                                                  _ -> Attr.class "is-sortable"
                                                 , Attr.style "width" "200px"
                                                 ]
                                                 [ div
                                                     [ Attr.class "th-wrap is-numeric"
+                                                    , onClick ClickedSortTime
                                                     ]
                                                     [ text "Time", span
                                                         [ Attr.class "icon is-small"
-                                                        , Attr.style "display" "none"
+                                                        , case model.sortAttribute of
+                                                            Time -> Attr.class ""
+                                                            _ -> Attr.style "display" "none"
                                                         ]
                                                         [ i
-                                                            [ Attr.class "fas fa-arrow-up"
-                                                            ]
+                                                            (viewSortArrow model)
                                                             []
                                                         ]
                                                     ]
@@ -1067,8 +1236,7 @@ viewMain shared model account =
                                                         , Attr.style "display" "none"
                                                         ]
                                                         [ i
-                                                            [ Attr.class "fas fa-arrow-up"
-                                                            ]
+                                                            (viewSortArrow model)
                                                             []
                                                         ]
                                                     ]
@@ -1111,6 +1279,13 @@ viewMain shared model account =
                 ]
             ]
         ]
+
+viewSortArrow: Model -> List(Attribute Msg)
+viewSortArrow model =
+    [ case model.sortType of
+        Ascending -> Attr.class "fas fa-arrow-down"
+        Descending -> Attr.class "fas fa-arrow-up"
+    ]
 
 viewFolderModal: Html Msg
 viewFolderModal =
