@@ -1,6 +1,6 @@
 ***
 <p align="center" width="100%">
-<img src="https://cdn.onintime.com/cryptzilla/logo/logo_white.png" alt="CryptZilla" height="60">
+<img src="https://cryptzilla.xyz/img/logo.png" alt="CryptZilla" height="60">
 </p>
 
 ***
