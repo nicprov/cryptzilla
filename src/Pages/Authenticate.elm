@@ -39,8 +39,8 @@ init : Request -> Shared.Model -> (Model, Cmd Msg)
 init req shared =
     let
         tmpModel = { account = { name = ""
-                               , region = Just ""
-                               , isDigitalOcean = False
+                               , region = Nothing
+                               , customHost = Nothing
                                , accessKey = ""
                                , secretKey = ""
                                , buckets = [""]

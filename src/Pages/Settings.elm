@@ -49,7 +49,7 @@ init shared =
         Just acc ->
             ( { account = { name = "S3"
                           , region = acc.region
-                          , isDigitalOcean = acc.isDigitalOcean
+                          , customHost = acc.customHost
                           , accessKey = acc.accessKey
                           , secretKey = acc.secretKey
                           , buckets = acc.buckets
@@ -67,7 +67,7 @@ init shared =
         Nothing ->
             ( { account = { name = ""
                           , region = Just ""
-                          , isDigitalOcean = False
+                          , customHost = Nothing
                           , accessKey = ""
                           , secretKey = ""
                           , buckets = [""]
@@ -87,7 +87,7 @@ init shared =
 
 type Msg
     = ChangeRegion String
-    | ChangeIsDigitalOcean String
+    | ChangeCustomHost String
     | ChangeAccessKey String
     | ChangeSecretKey String
     | ChangeBucket String
@@ -126,10 +126,10 @@ update shared req msg model =
             in
             ( { model | account = newAccount }, Cmd.none)
 
-        ChangeIsDigitalOcean isDigitalOcean ->
+        ChangeCustomHost customHost ->
             let
                 oldAccount = model.account
-                newAccount = { oldAccount | isDigitalOcean = (boolFromString isDigitalOcean) }
+                newAccount = { oldAccount | customHost = Just customHost }
             in
             ( { model | account = newAccount }, Cmd.none)
 
@@ -315,26 +315,25 @@ viewMain model =
                                 [ label
                                     [ Attr.class "label"
                                     ]
-                                    [ text "Is Digital Ocean" ]
+                                    [ text "Custom Host" ]
                                 , div
                                     [ Attr.attribute "data-v" ""
                                     , Attr.class "control has-icons-right"
                                     ]
-                                    [ select
-                                        [ Attr.class "form-control"
-                                        , Attr.id "exampleFormControlSelect1"
-                                        , Attr.value (stringFromBool model.account.isDigitalOcean)
-                                        , onInput ChangeIsDigitalOcean
+                                    [ input
+                                        [ Attr.type_ "text"
+                                        , Attr.class "input"
+                                        , Attr.value ( case model.account.customHost of
+                                                     Just host -> host
+                                                     Nothing -> ""
+                                                 )
+                                             , onInput ChangeCustomHost
                                         ]
-                                        [ option []
-                                            [ text "False" ]
-                                        , option []
-                                            [ text "True" ]
-                                        ]
+                                        []
                                     , small
                                         [ Attr.class "form-text text-muted"
                                         ]
-                                        [ text "Indicate whether the bucket is hosted on AWS or Digital Ocean" ]
+                                        [ text "Indicate whether to use a custom host" ]
                                     ]
                                 ]
                             , div
