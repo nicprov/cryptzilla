@@ -61,7 +61,7 @@ type Error
 type alias Account =
     { name : String
     , region : Maybe String
-    , isDigitalOcean : Bool
+    , customHost: Maybe String
     , accessKey : String
     , secretKey : String
     , buckets : List String

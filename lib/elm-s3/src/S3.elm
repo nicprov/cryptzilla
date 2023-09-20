@@ -219,11 +219,12 @@ encodeAccount account =
 
                 Just region ->
                     [ ( "region", JE.string region ) ]
-            , if account.isDigitalOcean then
-                [ ( "is-digital-ocean", JE.bool True ) ]
+            , case account.customHost of
+                Nothing ->
+                    []
 
-              else
-                []
+                Just customHost ->
+                    [ ( "customHost", JE.string customHost ) ]
             , [ ( "access-key", JE.string account.accessKey )
               , ( "secret-key", JE.string account.secretKey )
               , ( "buckets", JE.list JE.string account.buckets )
@@ -243,8 +244,8 @@ accountDecoder =
             ]
         )
         (JD.oneOf
-            [ JD.field "is-digital-ocean" JD.bool
-            , JD.succeed False
+            [ JD.field "customHost" (JD.nullable JD.string)
+            , JD.succeed Nothing
             ]
         )
         (JD.field "access-key" JD.string)
@@ -290,7 +291,7 @@ Sometimes useful for the `hostResolver`.
 
 -}
 makeService : Account -> Service
-makeService { region, isDigitalOcean } =
+makeService { region, customHost } =
     let
         prefix =
             -- Changed by `send` to the bucket for Digital Ocean.
@@ -315,12 +316,13 @@ makeService { region, isDigitalOcean } =
                             Config.SignV4
                             reg
     in
-    if isDigitalOcean then
-        -- regionResolver's default works for Digigal Ocean.
-        { service | hostResolver = digitalOceanHostResolver }
+    case customHost of
+        Nothing ->
+            service
 
-    else
-        service
+        Just host ->
+            -- regionResolver's default works for Digigal Ocean.
+            { service | hostResolver = customHostResolver host }
 
 
 digitalOceanHostResolver : Endpoint -> String -> String
@@ -331,6 +333,11 @@ digitalOceanHostResolver endpoint prefix =
 
         RegionalEndpoint rgn ->
             prefix ++ "." ++ rgn ++ ".digitaloceanspaces.com"
+
+
+customHostResolver: String -> Endpoint -> String -> String
+customHostResolver host _ _ =
+    host
 
 
 {-| A request that can be turned into a Task by `S3.send`.
@@ -350,17 +357,7 @@ fudgeRequest account request =
         service =
             makeService account
     in
-    if not account.isDigitalOcean then
-        ( service, request )
-
-    else
-        let
-            ( bucket, key ) =
-                pathBucketAndKey request.path
-        in
-        ( { service | endpointPrefix = bucket }
-        , { request | path = "/" ++ key }
-        )
+    ( service, request )
 
 fudgeBytesRequest : Account -> BytesRequest a -> ( Service, BytesRequest a )
 fudgeBytesRequest account request =
@@ -368,17 +365,7 @@ fudgeBytesRequest account request =
         service =
             makeService account
     in
-    if not account.isDigitalOcean then
-        ( service, request )
-
-    else
-        let
-            ( bucket, key ) =
-                pathBucketAndKey request.path
-        in
-        ( { service | endpointPrefix = bucket }
-        , { request | path = "/" ++ key }
-        )
+    ( service, request )
 
 {-| Create a `Task` to send a signed request over the wire.
 -}
