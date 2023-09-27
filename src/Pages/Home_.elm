@@ -1,6 +1,7 @@
 module Pages.Home_ exposing (Model, Msg, page)
 
 import Base64
+import Browser.Navigation as Navigation
 import Bytes exposing (Bytes)
 import Bytes.Decode as Decode
 import Bytes.Encode as Encode
@@ -128,6 +129,7 @@ type Msg
     | ClickedBack
     | ClickedLogout
     | ClickedSettings
+    | ClickedLock
     | ClickedUploadFile
     | ClickedRefresh
     | ClickedNewFolder
@@ -749,6 +751,9 @@ update shared req msg model =
                     in
                     ( { model | sortAttribute = Time, sortType = Ascending, tempKeys = keys, tempFolders = folders }, Cmd.none )
 
+        ClickedLock ->
+            ( model, Navigation.reload )
+
 
 
 -- Listen for shared model changes
@@ -858,6 +863,15 @@ viewMain shared model account =
                                 , Attr.class "navbar-end"
                                 ]
                                 [ a
+                                    [ Attr.attribute "data-v-cd57c856" ""
+                                    , Attr.style "color" "#253b6e"
+                                    , Attr.style "font-weight" "600"
+                                    , Attr.class "navbar-item logout"
+                                    , Attr.href "#"
+                                    , onClick ClickedLock
+                                    ]
+                                    [ text "Lock" ]
+                                , a
                                     [ Attr.attribute "data-v-cd57c856" ""
                                     , Attr.style "color" "#253b6e"
                                     , Attr.style "font-weight" "600"

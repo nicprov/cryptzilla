@@ -7,6 +7,7 @@ port module Storage exposing
     , onChange
     , signIn
     , signOut
+    , lock
     , authenticate
     , decrypt
     , encrypt
@@ -77,6 +78,21 @@ signIn: S3.Types.Account -> String -> String -> String -> Storage -> Cmd msg
 signIn account password salt encryptionKey storage =
     let
         tmpStorage = { storage | account = Just account, password = password, salt = salt, encryptionKey = encryptionKey }
+        encryptedStorage = encrypt tmpStorage
+    in
+    case encryptedStorage of
+        Just encrypted ->
+            encrypted
+                |> storageToJson
+                |> save
+
+        Nothing ->
+            Cmd.none
+
+lock: Storage -> Cmd msg
+lock storage =
+    let
+        tmpStorage = { storage | encryptionKey = "" }
         encryptedStorage = encrypt tmpStorage
     in
     case encryptedStorage of
