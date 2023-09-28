@@ -202,7 +202,7 @@ init =
     , password = ""
     , salt = ""
     , encryptionKey = ""
-    , timeout = 300
+    , timeout = 300000
     }
 
 -- Listen for storage updates
