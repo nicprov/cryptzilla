@@ -30,6 +30,7 @@ type alias Storage =
     , password: String
     , salt: String
     , encryptionKey: String
+    , timeout: Int -- In seconds
     }
 
 -- Ports
@@ -49,6 +50,7 @@ storageToJson storage =
                 , ("rclonePassword", Encode.string storage.password)
                 , ("rcloneSalt", Encode.string storage.salt)
                 , ("encryptionKey", Encode.string storage.encryptionKey)
+                , ("timeout", Encode.int storage.timeout)
                 ]
         Nothing ->
             Encode.object []
@@ -71,13 +73,14 @@ storageDecoder =
         |> required "rclonePassword" Decode.string
         |> required "rcloneSalt" Decode.string
         |> required "encryptionKey" Decode.string
+        |> required "timeout" Decode.int
 
 -- Auth
 
-signIn: S3.Types.Account -> String -> String -> String -> Storage -> Cmd msg
-signIn account password salt encryptionKey storage =
+signIn: S3.Types.Account -> String -> String -> String -> Int -> Storage -> Cmd msg
+signIn account password salt encryptionKey timeout storage =
     let
-        tmpStorage = { storage | account = Just account, password = password, salt = salt, encryptionKey = encryptionKey }
+        tmpStorage = { storage | account = Just account, password = password, salt = salt, encryptionKey = encryptionKey, timeout = timeout }
         encryptedStorage = encrypt tmpStorage
     in
     case encryptedStorage of
@@ -199,6 +202,7 @@ init =
     , password = ""
     , salt = ""
     , encryptionKey = ""
+    , timeout = 300
     }
 
 -- Listen for storage updates
