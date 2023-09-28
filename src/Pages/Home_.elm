@@ -18,6 +18,7 @@ import Html.Events exposing (onClick, onInput)
 import List exposing (head)
 import List.Extra as LE exposing (intercalate, uniqueBy)
 import Page
+import Process
 import Request exposing (Request)
 import S3
 import S3.Types exposing (CommonPrefixes, Error, KeyInfo, KeyList, QueryElement(..))
@@ -106,7 +107,10 @@ init req shared =
         ( { tmpModel | status = Loading "Loading..." }
         , case shared.storage.account of
             Just account ->
-                listBucket account "" (CurrentDir "" "")
+                Cmd.batch [ listBucket account "" (CurrentDir "" "")
+                          , Process.sleep (toFloat shared.storage.timeout)
+                                |> Task.perform (\_ -> ClickedLock)
+                          ]
             Nothing ->
                 Request.replaceRoute Gen.Route.Login req -- Redirect to login page if account is none
         )

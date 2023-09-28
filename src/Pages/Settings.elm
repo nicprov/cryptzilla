@@ -37,6 +37,7 @@ type alias Model =
     , rclonePassword: String
     , rcloneSalt: String
     , encryptionKey: String
+    , timeout: Maybe Int
     , secretKeyHidden: Bool
     , rclonePasswordHidden: Bool
     , rcloneSaltHidden: Bool
@@ -58,6 +59,7 @@ init shared =
               , rclonePassword = shared.storage.password
               , rcloneSalt = shared.storage.salt
               , encryptionKey = shared.storage.encryptionKey
+              , timeout = Just shared.storage.timeout
               , secretKeyHidden = True
               , rclonePasswordHidden = True
               , rcloneSaltHidden = True
@@ -76,6 +78,7 @@ init shared =
               , rclonePassword = ""
               , rcloneSalt = ""
               , encryptionKey = ""
+              , timeout = Nothing
               , secretKeyHidden = True
               , rclonePasswordHidden = True
               , rcloneSaltHidden = True
@@ -94,6 +97,7 @@ type Msg
     | ChangeRclonePassword String
     | ChangeRcloneSalt String
     | ChangeEncryptionKey String
+    | ChangeTimeout String
     | ClickedSave
     | ClickedHideSecretKey
     | ClickedHideEncryptionKey
@@ -173,11 +177,16 @@ update shared req msg model =
             else if model.rclonePassword == "" then
                 ( { model | status = Error "Rclone password cannot be empty"}, Cmd.none)
             else if model.encryptionKey == "" then
-            ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
+                ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
             else
-                ( model
-                , Storage.signIn model.account model.rclonePassword model.rcloneSalt model.encryptionKey shared.storage
-                )
+                case model.timeout of
+                    Just t ->
+                        ( model
+                        , Storage.signIn model.account model.rclonePassword model.rcloneSalt model.encryptionKey t shared.storage
+                        )
+
+                    Nothing ->
+                        ( { model | status = Error "Invalid timeout, must be a valid number" }, Cmd.none)
 
         ClickedHideSecretKey ->
             if model.secretKeyHidden then
@@ -220,6 +229,9 @@ update shared req msg model =
                     ( { model | status = Error "Unable to encrypt credentials" }
                     , Cmd.none
                     )
+
+        ChangeTimeout timeout ->
+            ( { model | timeout = String.toInt timeout }, Cmd.none )
 
 
 -- View
@@ -536,6 +548,34 @@ viewMain model =
                                             ]
                                             []
                                         ]
+                                    ]
+                                ]
+                            , div
+                                [ Attr.attribute "data-v" ""
+                                , Attr.class "field"
+                                ]
+                                [ label
+                                    [ Attr.class "label"
+                                    ]
+                                    [ text "Timeout" ]
+                                , div
+                                    [ Attr.attribute "data-v" ""
+                                    , Attr.class "control has-icons-right"
+                                    ]
+                                    [ input
+                                        [ Attr.type_ "text"
+                                        , Attr.class "input"
+                                        , Attr.value (case model.timeout of
+                                            Just t -> String.fromInt t
+                                            Nothing -> ""
+                                            )
+                                        , onInput ChangeTimeout
+                                        ]
+                                        []
+                                    , small
+                                        [ Attr.class "form-text text-muted"
+                                        ]
+                                        [ text "Time in milliseconds before the session locks and the decryption key needs to be entered" ]
                                     ]
                                 ]
                             , div
