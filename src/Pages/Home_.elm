@@ -53,6 +53,7 @@ type alias Model =
     , folderModal: Bool
     , folderName: String
     , fileNameEncrypted: Bool
+    , showHiddenFiles: Bool
     , search: String
     , sortAttribute: SortAttribute
     , sortType: SortType
@@ -98,6 +99,7 @@ init req shared =
                    , folderModal = False
                    , folderName = ""
                    , fileNameEncrypted = False
+                   , showHiddenFiles = False
                    , search = ""
                    , sortType = Ascending
                    , sortAttribute = Name
@@ -142,6 +144,7 @@ type Msg
     | ClickedDeleteSelected
     | ClickedCopyURL
     | ClickedToggleFileNameEncryption
+    | ClickedToggleShowHiddenFiles
     | ClickedSortName
     | ClickedSortSize
     | ClickedSortTime
@@ -270,6 +273,20 @@ commonPrefixToKeyInfo commonPrefix =
                    , displayName = ""
                    }
     }
+
+removeHiddenFiles: Bool -> String -> KeyInfoDecrypted -> Bool
+removeHiddenFiles showHidden folder item =
+    if not showHidden then
+        let
+            removedFolderFromPath = String.dropLeft (String.length folder) item.keyDecrypted
+        in
+        if String.left 1 removedFolderFromPath /= "." then
+            True
+        else
+            False
+    else
+        True
+
 
 update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
 update shared req msg model =
@@ -758,6 +775,12 @@ update shared req msg model =
         ClickedLock ->
             ( model, Navigation.reload )
 
+        ClickedToggleShowHiddenFiles ->
+            if model.showHiddenFiles then
+                ( { model | showHiddenFiles = False }, Cmd.none )
+            else
+                ( { model | showHiddenFiles = True }, Cmd.none )
+
 
 
 -- Listen for shared model changes
@@ -1086,6 +1109,41 @@ viewMain shared model account =
                                             ]
                                         ]
                                     ]
+                                , a
+                                    [ Attr.attribute "data-v-081c0a81" ""
+                                    , Attr.class "add-new is-inline-block"
+                                    , Attr.href "#"
+                                    ]
+                                    [ div
+                                        [ Attr.attribute "data-v-081c0a81" ""
+                                        , Attr.class "dropdown is-mobile-modal"
+                                        ]
+                                        [ div
+                                            [ Attr.attribute "role" "button"
+                                            , Attr.attribute "aria-haspopup" "true"
+                                            , Attr.class "dropdown-trigger"
+                                            ]
+                                            [ span
+                                                [ Attr.attribute "data-v-081c0a81" ""
+                                                , Attr.href "#"
+                                                , onClick ClickedToggleShowHiddenFiles
+                                                ]
+                                                [ span
+                                                    [ Attr.attribute "data-v-081c0a81" ""
+                                                    , Attr.class "icon is-small"
+                                                    ]
+                                                    [ i
+                                                        [ if model.showHiddenFiles then
+                                                            Attr.class "fas fa-eye"
+                                                          else
+                                                            Attr.class "fas fa-eye-slash"
+                                                        ]
+                                                        []
+                                                    ]
+                                                , text " Toggle Hidden Files" ]
+                                            ]
+                                        ]
+                                    ]
                                 , viewSelectedDelete model
                                 ]
                             ]
@@ -1262,10 +1320,14 @@ viewMain shared model account =
                                             ]
                                         ]
                                     , tbody []
-                                        (if List.length model.tempKeys /= 0 then
+                                        (let
+                                            filteredKeys =  List.filter (removeHiddenFiles model.showHiddenFiles model.currentDir.dirDecrypted) model.tempKeys
+                                            filteredFolders = List.filter (removeHiddenFiles model.showHiddenFiles model.currentDir.dirDecrypted) model.tempFolders
+                                        in
+                                        if List.length filteredKeys /= 0 then
                                              (List.append
-                                                 (List.append (viewBack model) (List.map (viewFolderItem shared model) model.tempFolders))
-                                                 (List.map (viewFileItem shared model) model.tempKeys)
+                                                 (List.append (viewBack model) (List.map (viewFolderItem shared model) filteredFolders))
+                                                 (List.map (viewFileItem shared model) filteredKeys)
                                              )
                                          else
                                              [div [] []]
