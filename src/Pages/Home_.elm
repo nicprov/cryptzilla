@@ -1459,7 +1459,7 @@ viewFileItem: Shared.Model -> Model -> KeyInfoDecrypted -> Html Msg
 viewFileItem shared model key =
     if String.contains model.currentDir.dirDecrypted key.keyDecrypted then
         let
-            name = String.replace model.currentDir.dirDecrypted "" key.keyDecrypted
+            name = String.dropLeft (String.length model.currentDir.dirDecrypted) key.keyDecrypted
             file = String.split "/" name
         in
         if name /= "" && (List.length file) == 1 then
@@ -1684,9 +1684,8 @@ viewFolderItem: Shared.Model -> Model -> KeyInfoDecrypted -> Html Msg
 viewFolderItem shared model key =
     if String.contains model.currentDir.dirDecrypted key.keyDecrypted then
         let
-            tempFolder = String.replace model.currentDir.dirDecrypted "" key.keyDecrypted
+            tempFolder = String.dropLeft (String.length model.currentDir.dirDecrypted) key.keyDecrypted
         in
-
         if model.currentDir.dirDecrypted /= key.keyDecrypted && (List.length (String.split "/" tempFolder)) == 2 then
             viewFolder shared model key
         else
@@ -1747,7 +1746,7 @@ viewFolder shared model key =
                                 Nothing -> key.keyEncrypted
                         else
                             let
-                                name = String.replace model.currentDir.dirDecrypted "" key.keyDecrypted
+                                name = String.dropLeft (String.length model.currentDir.dirDecrypted) key.keyDecrypted
                             in
                             (String.left ((String.length name) - 1) name))
                 ]
