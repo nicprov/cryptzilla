@@ -179,7 +179,7 @@ update shared _ msg model =
                 case model.timeout of
                     Just t ->
                         ( model
-                        , Storage.signIn model.account model.rclonePassword model.rcloneSalt model.encryptionKey t shared.storage
+                        , Storage.signIn model.encryptionKey model.account model.rclonePassword model.rcloneSalt t shared.storage
                         )
 
                     Nothing ->
@@ -211,7 +211,7 @@ update shared _ msg model =
 
         ClickedLoadConfigurationFile ->
             ( model
-            , Select.file ["applicaiton/json"] ConfigurationFileSelected
+            , Select.file ["application/json"] ConfigurationFileSelected
             )
 
         ConfigurationFileSelected file ->
@@ -228,7 +228,7 @@ update shared _ msg model =
                     case c.account of
                         Just acc ->
                             ( model
-                            , Storage.signIn acc c.password c.salt c.encryptionKey c.timeout shared.storage
+                            , Storage.signIn model.encryptionKey acc c.password c.salt c.timeout shared.storage
                             )
 
                         Nothing ->
@@ -262,10 +262,6 @@ update shared _ msg model =
 
         ChangeTimeout timeout ->
             ( { model | timeout = String.toInt timeout }, Cmd.none )
-
-
-
-
 
 -- View
 

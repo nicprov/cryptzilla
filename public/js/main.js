@@ -9,7 +9,6 @@ app.ports.save.subscribe(storage => {
     }
     else { // Sign in/save settings event
         tmpStorage = JSON.parse(JSON.stringify(storage));
-        tmpStorage.encryptionKey = ""; // Don't save encryption key to storage, only keep in memory
         localStorage.setItem('storage', JSON.stringify(tmpStorage));
         app.ports.load.send(storage);
     }

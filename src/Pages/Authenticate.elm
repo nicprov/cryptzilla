@@ -2,6 +2,7 @@ module Pages.Authenticate exposing (Model, Msg, page)
 
 import Common.Alert exposing (viewAlertError)
 import Common.Footer exposing (viewFooter)
+import Effect exposing (Effect)
 import Gen.Route
 import Hotkeys exposing (onKeyCode)
 import Html exposing (Html, a, br, button, div, form, h1, hr, i, img, input, label, li, main_, ol, option, p, select, small, span, text)
@@ -11,13 +12,13 @@ import S3.Types
 import List exposing (head)
 import Page
 import Request exposing (Request)
-import Shared
+import Shared exposing (Msg(..))
 import Storage exposing (signIn)
 import View exposing (View)
 
 page : Shared.Model -> Request -> Page.With Model Msg
 page shared req =
-    Page.element
+    Page.advanced
         { init = init req shared
         , update = update shared req
         , view = view shared
@@ -30,12 +31,11 @@ type Status
 
 type alias Model =
     { account: S3.Types.Account
-    , encryptionKey: String
     , encryptionKeyHidden: Bool
     , status: Status
     }
 
-init : Request -> Shared.Model -> (Model, Cmd Msg)
+init : Request -> Shared.Model -> (Model, Effect Msg)
 init req shared =
     let
         tmpModel = { account = { name = ""
@@ -45,16 +45,15 @@ init req shared =
                                , secretKey = ""
                                , buckets = [""]
                                }
-                   , encryptionKey = ""
                    , encryptionKeyHidden = True
                    , status = None
                    }
     in
     case shared.storage.account of
         Just acc ->
-            ( { tmpModel | account = acc }, Cmd.none )
+            ( { tmpModel | account = acc }, Effect.none )
         Nothing ->
-            ( tmpModel, Request.replaceRoute Gen.Route.Login req ) -- Redirect to login page if account is none
+            ( tmpModel, Effect.fromCmd (Request.replaceRoute Gen.Route.Login req) ) -- Redirect to login page if account is none
 
 -- Update
 
@@ -65,48 +64,51 @@ type Msg
     | ClickedHideEncryptionKey
     | PressedEnter
 
-authenticate: Shared.Model -> Model -> (Model, Cmd Msg)
+authenticate: Shared.Model -> Model -> (Model, Effect Msg)
 authenticate shared model =
-    if model.encryptionKey == "" then
-        ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
+    if shared.encryptionKey == "" then
+        ( { model | status = Error "Encryption key cannot be empty"}, Effect.none)
     else
         ( { model | status = Error "Invalid decryption key" } -- This will only show if the user isn't redirected to the home page
-        , Storage.authenticate model.account shared.storage.password shared.storage.salt model.encryptionKey shared.storage
+        , Effect.fromCmd (Storage.authenticate model.account shared.storage.password shared.storage.salt shared.storage)
         )
 
-update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
+update: Shared.Model -> Request -> Msg -> Model -> (Model, Effect Msg)
 update shared req msg model =
     case msg of
-
         ChangeEncryptionKey key ->
-            ( { model | encryptionKey = key }, Cmd.none)
+            ( model
+            , Effect.fromShared (ChangeSharedEncryptionKey key)
+            )
 
         ClickedDecrypt ->
             authenticate shared model
 
         ClickedHideEncryptionKey ->
             if model.encryptionKeyHidden then
-                ( { model | encryptionKeyHidden = False }, Cmd.none)
+                ( { model | encryptionKeyHidden = False }, Effect.none)
             else
-                ( { model | encryptionKeyHidden = True }, Cmd.none)
+                ( { model | encryptionKeyHidden = True }, Effect.none)
 
         PressedEnter ->
             authenticate shared model
 
         ClickedLogout ->
-            ( model, Storage.signOut shared.storage )
+            ( model
+            , Effect.fromCmd (Storage.signOut shared.storage)
+            )
 
 -- View
 
 view : Shared.Model -> Model -> View Msg
-view _ model =
+view shared model =
     { title = "Cryptzilla | Authenticate"
-    , body = [ viewMain model
+    , body = [ viewMain shared model
              ]
     }
 
-viewMain: Model -> Html Msg
-viewMain model =
+viewMain: Shared.Model -> Model -> Html Msg
+viewMain shared model =
     div
         [ Attr.id "wrapper"
         ]
@@ -168,7 +170,7 @@ viewMain model =
                                           else
                                             Attr.type_ "text"
                                         , Attr.class "input"
-                                        , Attr.value model.encryptionKey
+                                        , Attr.value shared.encryptionKey
                                         , onInput ChangeEncryptionKey
                                         , onKeyCode 13 PressedEnter
                                         ]

@@ -1,7 +1,7 @@
 port module Shared exposing
     ( Flags
     , Model
-    , Msg
+    , Msg(..)
     , init
     , subscriptions
     , update
@@ -20,8 +20,6 @@ port module Shared exposing
     , EncryptedFile
     )
 
-import Bytes exposing (Bytes)
-import Bytes.Decode as Decode
 import Gen.Route
 import Json.Decode as Json exposing (Decoder)
 import S3.Types
@@ -35,6 +33,7 @@ type alias Flags =
 
 type alias Model =
     { storage : Storage
+    , encryptionKey: String
     }
 
 type alias KeyListDescriptionMessage =
@@ -74,6 +73,7 @@ type alias EncryptedFile =
 
 type Msg
     = StorageUpdated Storage
+    | ChangeSharedEncryptionKey String
 
 
 
@@ -93,7 +93,9 @@ port decryptedKeyList: (KeyListDecrypted -> msg) -> Sub msg
 init : Request -> Flags -> ( Model, Cmd Msg )
 init req flags =
     let
-        model =  { storage = Storage.storageFromJson flags }
+        model =  { storage = Storage.storageFromJson flags
+                 , encryptionKey = ""
+                 }
     in
     ( model
     , if model.storage.account /= Nothing && req.route == Gen.Route.Login then
@@ -112,7 +114,7 @@ update req msg model =
         StorageUpdated storage ->
             case storage.account of
                 Just _ ->
-                    case decrypt storage of
+                    case decrypt model.encryptionKey storage of
                         Just decryptedStorage ->
                             ( { model | storage = decryptedStorage }
                             , Request.replaceRoute Gen.Route.Home_ req
@@ -120,12 +122,15 @@ update req msg model =
 
                         Nothing ->
                             ( { model | storage = storage }
-                            , Cmd.none
+                            , Request.replaceRoute Gen.Route.Authenticate req
                             )
                 Nothing ->
-                    ( { model | storage = storage }
+                    ( { model | storage = storage, encryptionKey = "" }
                     , Request.replaceRoute Gen.Route.Login req
                     )
+
+        ChangeSharedEncryptionKey key ->
+            ( { model | encryptionKey = key }, Cmd.none )
 
 
 subscriptions : Request -> Model -> Sub Msg

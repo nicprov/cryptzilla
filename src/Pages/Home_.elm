@@ -105,7 +105,7 @@ init req shared =
                    , sortAttribute = Name
                    }
     in
-    if shared.storage.encryptionKey /= "" then
+    if shared.encryptionKey /= "" then
         ( { tmpModel | status = Loading "Loading..." }
         , case shared.storage.account of
             Just account ->
