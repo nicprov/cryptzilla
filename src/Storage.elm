@@ -18,7 +18,6 @@ import Json.Decode.Pipeline exposing (hardcoded, optional, required)
 import Json.Encode as Encode exposing (Value, encode, list, string)
 import S3 as S3
 import S3.Types
-import List exposing (concatMap)
 import Crypto.Strings as Strings exposing (decrypt, encrypt)
 import Random exposing (Seed, initialSeed)
 import String exposing (dropLeft, left)
@@ -29,7 +28,6 @@ type alias Storage =
     { account: Maybe S3.Types.Account
     , password: String
     , salt: String
-    , encryptionKey: String
     , timeout: Int -- In seconds
     }
 
@@ -49,7 +47,6 @@ storageToJson storage =
                 [ ("account", S3.encodeAccount account)
                 , ("rclonePassword", Encode.string storage.password)
                 , ("rcloneSalt", Encode.string storage.salt)
-                , ("encryptionKey", Encode.string storage.encryptionKey)
                 , ("timeout", Encode.int storage.timeout)
                 ]
         Nothing ->
@@ -72,16 +69,15 @@ storageDecoder =
         |> required "account" (nullable S3.accountDecoder)
         |> required "rclonePassword" Decode.string
         |> required "rcloneSalt" Decode.string
-        |> required "encryptionKey" Decode.string
         |> required "timeout" Decode.int
 
 -- Auth
 
-signIn: S3.Types.Account -> String -> String -> String -> Int -> Storage -> Cmd msg
-signIn account password salt encryptionKey timeout storage =
+signIn: String -> S3.Types.Account -> String -> String -> Int -> Storage -> Cmd msg
+signIn encryptionKey account password salt timeout storage =
     let
-        tmpStorage = { storage | account = Just account, password = password, salt = salt, encryptionKey = encryptionKey, timeout = timeout }
-        encryptedStorage = encrypt tmpStorage
+        tmpStorage = { storage | account = Just account, password = password, salt = salt, timeout = timeout }
+        encryptedStorage = encrypt encryptionKey tmpStorage
     in
     case encryptedStorage of
         Just encrypted ->
@@ -92,11 +88,10 @@ signIn account password salt encryptionKey timeout storage =
         Nothing ->
             Cmd.none
 
-lock: Storage -> Cmd msg
-lock storage =
+lock: String -> Storage -> Cmd msg
+lock encryptionKey storage =
     let
-        tmpStorage = { storage | encryptionKey = "" }
-        encryptedStorage = encrypt tmpStorage
+        encryptedStorage = encrypt encryptionKey storage
     in
     case encryptedStorage of
         Just encrypted ->
@@ -109,29 +104,29 @@ lock storage =
 
 signOut: Storage -> Cmd msg
 signOut storage =
-    { storage | account = Nothing, password = "", salt = "", encryptionKey = ""}
+    { storage | account = Nothing, password = "", salt = ""}
         |> storageToJson
         |> save
 
 
-authenticate: S3.Types.Account -> String -> String -> String -> Storage -> Cmd msg
-authenticate account password salt encryptionKey storage =
-    { storage | account = Just account, password = password, salt = salt, encryptionKey = encryptionKey }
+authenticate: S3.Types.Account -> String -> String -> Storage -> Cmd msg
+authenticate account password salt storage =
+    { storage | account = Just account, password = password, salt = salt }
         |> storageToJson
         |> save
 
 -- Encrypt storage
-encrypt: Storage -> Maybe Storage
-encrypt storage =
+encrypt: String -> Storage -> Maybe Storage
+encrypt encryptionKey storage =
     case storage.account of
         Just acc ->
-            case Strings.encrypt (initialSeed 0) storage.encryptionKey ("valid" ++ acc.accessKey) of -- encrypt access key
+            case Strings.encrypt (initialSeed 0) encryptionKey ("valid" ++ acc.accessKey) of -- encrypt access key
                 Ok encryptedAccessKey ->
-                    case Strings.encrypt (initialSeed 0) storage.encryptionKey ("valid" ++ acc.secretKey) of -- encrypt secret key
+                    case Strings.encrypt (initialSeed 0) encryptionKey ("valid" ++ acc.secretKey) of -- encrypt secret key
                         Ok encryptedSecretKey ->
-                            case Strings.encrypt (initialSeed 0) storage.encryptionKey ("valid" ++ storage.password) of -- encrypt rclone password
+                            case Strings.encrypt (initialSeed 0) encryptionKey ("valid" ++ storage.password) of -- encrypt rclone password
                                 Ok encryptedPassword ->
-                                    case Strings.encrypt (initialSeed 0) storage.encryptionKey ("valid" ++ storage.salt) of -- encrypt rclone salt
+                                    case Strings.encrypt (initialSeed 0) encryptionKey ("valid" ++ storage.salt) of -- encrypt rclone salt
                                         Ok encryptedSalt ->
                                             let
                                                 tmpAccount = acc
@@ -151,17 +146,17 @@ encrypt storage =
 
 
 -- Decrypt storage
-decrypt: Storage -> Maybe Storage
-decrypt storage =
+decrypt: String -> Storage -> Maybe Storage
+decrypt encryptionKey storage =
     case storage.account of
         Just acc ->
-            case Strings.decrypt storage.encryptionKey acc.accessKey of -- decrypt access key
+            case Strings.decrypt encryptionKey acc.accessKey of -- decrypt access key
                 Ok decryptedAccessKey ->
-                    case Strings.decrypt storage.encryptionKey acc.secretKey of -- decrypt secret key
+                    case Strings.decrypt encryptionKey acc.secretKey of -- decrypt secret key
                         Ok decryptedSecretKey ->
-                            case Strings.decrypt storage.encryptionKey storage.password of -- decrypt rclone password
+                            case Strings.decrypt encryptionKey storage.password of -- decrypt rclone password
                                 Ok decryptedPassword ->
-                                    case Strings.decrypt storage.encryptionKey storage.salt of -- decrypt rclone salt
+                                    case Strings.decrypt encryptionKey storage.salt of -- decrypt rclone salt
                                         Ok decryptedSalt ->
                                             let
                                                 -- verify if the first 5 characters = valid, if not, will be gibberish (invalid passphrase)
@@ -201,7 +196,6 @@ init =
     { account = Nothing
     , password = ""
     , salt = ""
-    , encryptionKey = ""
     , timeout = 300000
     }
 

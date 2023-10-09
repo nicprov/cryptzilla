@@ -2,6 +2,7 @@ module Pages.Settings exposing (Model, Msg, page)
 
 import Common.Alert exposing (viewAlertError)
 import Common.Footer exposing (viewFooter)
+import Effect exposing (Effect)
 import File.Download as Download
 import Gen.Route
 import Html exposing (Html, a, br, button, div, form, h1, hr, i, img, input, label, li, main_, ol, option, p, select, small, span, text)
@@ -12,7 +13,7 @@ import S3.Types
 import List exposing (head)
 import Page
 import Request exposing (Request)
-import Shared
+import Shared exposing (Msg(..))
 import Storage exposing (signIn)
 import View exposing (View)
 import Crypto.Strings exposing (decrypt, encrypt)
@@ -20,7 +21,7 @@ import Random exposing (Seed, initialSeed)
 
 page : Shared.Model -> Request -> Page.With Model Msg
 page shared req =
-    Page.element
+    Page.advanced
         { init = init shared
         , update = update shared req
         , view = view shared
@@ -36,7 +37,6 @@ type alias Model =
     , status: Status
     , rclonePassword: String
     , rcloneSalt: String
-    , encryptionKey: String
     , timeout: Maybe Int
     , secretKeyHidden: Bool
     , rclonePasswordHidden: Bool
@@ -44,7 +44,7 @@ type alias Model =
     , encryptionKeyHidden: Bool
     }
 
-init : Shared.Model -> (Model, Cmd Msg)
+init : Shared.Model -> (Model, Effect Msg)
 init shared =
     case shared.storage.account of
         Just acc ->
@@ -58,14 +58,13 @@ init shared =
               , status = None
               , rclonePassword = shared.storage.password
               , rcloneSalt = shared.storage.salt
-              , encryptionKey = shared.storage.encryptionKey
               , timeout = Just shared.storage.timeout
               , secretKeyHidden = True
               , rclonePasswordHidden = True
               , rcloneSaltHidden = True
               , encryptionKeyHidden = True
               }
-            , Cmd.none )
+            , Effect.none )
         Nothing ->
             ( { account = { name = ""
                           , region = Just ""
@@ -77,14 +76,13 @@ init shared =
               , status = None
               , rclonePassword = ""
               , rcloneSalt = ""
-              , encryptionKey = ""
               , timeout = Nothing
               , secretKeyHidden = True
               , rclonePasswordHidden = True
               , rcloneSaltHidden = True
               , encryptionKeyHidden = True
               }
-            , Cmd.none )
+            , Effect.none )
 
 -- Update
 
@@ -120,7 +118,7 @@ boolFromString value =
   else
     False
 
-update: Shared.Model -> Request -> Msg -> Model -> (Model, Cmd Msg)
+update: Shared.Model -> Request -> Msg -> Model -> (Model, Effect Msg)
 update shared req msg model =
     case msg of
         ChangeRegion region ->
@@ -128,123 +126,127 @@ update shared req msg model =
                 oldAccount = model.account
                 newAccount = { oldAccount | region = Just region }
             in
-            ( { model | account = newAccount }, Cmd.none)
+            ( { model | account = newAccount }, Effect.none)
 
         ChangeCustomHost customHost ->
             let
                 oldAccount = model.account
                 newAccount = { oldAccount | customHost = Just customHost }
             in
-            ( { model | account = newAccount }, Cmd.none)
+            ( { model | account = newAccount }, Effect.none)
 
         ChangeAccessKey accessKey ->
             let
                 oldAccount = model.account
                 newAccount = { oldAccount | accessKey = accessKey }
             in
-            ( { model | account = newAccount }, Cmd.none)
+            ( { model | account = newAccount }, Effect.none)
 
         ChangeBucket bucket ->
             let
                 oldAccount = model.account
                 newAccount = { oldAccount | buckets = [bucket] }
             in
-            ( { model | account = newAccount }, Cmd.none)
+            ( { model | account = newAccount }, Effect.none)
 
         ChangeSecretKey secretKey ->
             let
                 oldAccount = model.account
                 newAccount = { oldAccount | secretKey = secretKey }
             in
-            ( { model | account = newAccount }, Cmd.none)
+            ( { model | account = newAccount }, Effect.none)
 
         ChangeRclonePassword password ->
-            ( { model | rclonePassword = password }, Cmd.none)
+            ( { model | rclonePassword = password }, Effect.none)
 
         ChangeRcloneSalt salt ->
-            ( { model | rcloneSalt = salt }, Cmd.none)
+            ( { model | rcloneSalt = salt }, Effect.none)
 
         ChangeEncryptionKey key ->
-            ( { model | encryptionKey = key }, Cmd.none)
+            ( model
+            , Effect.fromShared (ChangeSharedEncryptionKey key)
+            )
 
         ClickedSave ->
             if model.account.accessKey == "" then
-                ( { model | status = Error "Access Key cannot be empty"}, Cmd.none)
+                ( { model | status = Error "Access Key cannot be empty"}, Effect.none)
             else if model.account.secretKey == "" then
-                ( { model | status = Error "Endpoint cannot be empty"}, Cmd.none)
+                ( { model | status = Error "Endpoint cannot be empty"}, Effect.none)
             else if model.account.buckets == [] then
-                ( { model | status = Error "Bucket cannot be empty"}, Cmd.none)
+                ( { model | status = Error "Bucket cannot be empty"}, Effect.none)
             else if model.rclonePassword == "" then
-                ( { model | status = Error "Rclone password cannot be empty"}, Cmd.none)
-            else if model.encryptionKey == "" then
-                ( { model | status = Error "Encryption key cannot be empty"}, Cmd.none)
+                ( { model | status = Error "Rclone password cannot be empty"}, Effect.none)
+            else if shared.encryptionKey == "" then
+                ( { model | status = Error "Encryption key cannot be empty"}, Effect.none)
             else
                 case model.timeout of
                     Just t ->
                         ( model
-                        , Storage.signIn model.account model.rclonePassword model.rcloneSalt model.encryptionKey t shared.storage
+                        , Effect.fromCmd (Storage.signIn shared.encryptionKey model.account model.rclonePassword model.rcloneSalt t shared.storage)
                         )
 
                     Nothing ->
-                        ( { model | status = Error "Invalid timeout, must be a valid number" }, Cmd.none)
+                        ( { model | status = Error "Invalid timeout, must be a valid number" }, Effect.none)
 
         ClickedHideSecretKey ->
             if model.secretKeyHidden then
-                ( { model | secretKeyHidden = False }, Cmd.none)
+                ( { model | secretKeyHidden = False }, Effect.none)
             else
-                ( { model | secretKeyHidden = True }, Cmd.none)
+                ( { model | secretKeyHidden = True }, Effect.none)
 
         ClickedHideEncryptionKey ->
             if model.encryptionKeyHidden then
-                ( { model | encryptionKeyHidden = False }, Cmd.none)
+                ( { model | encryptionKeyHidden = False }, Effect.none)
             else
-                ( { model | encryptionKeyHidden = True }, Cmd.none)
+                ( { model | encryptionKeyHidden = True }, Effect.none)
 
         ClickedHideRclonePassword ->
             if model.rclonePasswordHidden then
-                ( { model | rclonePasswordHidden = False }, Cmd.none)
+                ( { model | rclonePasswordHidden = False }, Effect.none)
             else
-                ( { model | rclonePasswordHidden = True }, Cmd.none)
+                ( { model | rclonePasswordHidden = True }, Effect.none)
 
         ClickedHideRcloneSalt ->
             if model.rcloneSaltHidden then
-                ( { model | rcloneSaltHidden = False }, Cmd.none)
+                ( { model | rcloneSaltHidden = False }, Effect.none)
             else
-                ( { model | rcloneSaltHidden = True }, Cmd.none)
+                ( { model | rcloneSaltHidden = True }, Effect.none)
 
         ClickedHome ->
-            ( model, Request.replaceRoute Gen.Route.Home_ req )
+            ( model
+            , Effect.fromCmd (Request.replaceRoute Gen.Route.Home_ req)
+            )
 
         ClickedDownloadConfig ->
             let
-                encryptedStorage = Storage.encrypt shared.storage
+                encryptedStorage = Storage.encrypt shared.encryptionKey shared.storage
             in
             case encryptedStorage of
                 Just s ->
                     ( model
-                    , Download.string "config.json" "application/json" (encode 0 (Storage.storageToJson { s | encryptionKey = ""}))
+                    , Effect.fromCmd (Download.string "config.json" "application/json" (encode 0 (Storage.storageToJson s)))
                     )
 
                 Nothing ->
                     ( { model | status = Error "Unable to encrypt credentials" }
-                    , Cmd.none
+                    , Effect.none
                     )
 
         ChangeTimeout timeout ->
-            ( { model | timeout = String.toInt timeout }, Cmd.none )
+            ( { model | timeout = String.toInt timeout }, Effect.none )
 
 
 -- View
 
 view : Shared.Model -> Model -> View Msg
-view _ model =
+view shared model =
     { title = "Cryptzilla | Settings"
-    , body = [ viewMain model
+    , body = [ viewMain shared model
              ]
     }
 
-viewMain: Model -> Html Msg
-viewMain model =
+viewMain: Shared.Model -> Model -> Html Msg
+viewMain shared model =
     div
         [ Attr.id "wrapper"
         ]
@@ -528,7 +530,7 @@ viewMain model =
                                           else
                                             Attr.type_ "text"
                                         , Attr.class "input"
-                                        , Attr.value model.encryptionKey
+                                        , Attr.value shared.encryptionKey
                                         , onInput ChangeEncryptionKey
                                         ]
                                         []
